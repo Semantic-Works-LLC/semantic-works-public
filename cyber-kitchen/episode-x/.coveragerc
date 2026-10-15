@@ -1,0 +1,7 @@
+[run]
+branch = True
+source_pkgs = server
+
+[report]
+show_missing = True
+fail_under = 100

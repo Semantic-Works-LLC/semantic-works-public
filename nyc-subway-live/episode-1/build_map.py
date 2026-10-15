@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Builds site/map-data.js: the subway lines and stations the page draws.
+
+Standard library only. Reads the MTA's static GTFS schedule (downloaded, or a
+local zip given as the first argument) and writes each route's track geometry
+and every station, projected to flat x/y. Run it again only when the MTA
+changes the network.
+"""
+import csv
+import io
+import json
+import math
+import ssl
+import sys
+import urllib.request
+import zipfile
+from collections import defaultdict
+from pathlib import Path
+
+GTFS_URL = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
+OUT = Path(__file__).parent / "site" / "map-data.js"
+METRES_PER_UNIT = 5
+SIMPLIFY_UNITS = 1.5  # points closer than this to a straight line are dropped
+LAT0, LON0 = 40.92, -74.27  # north-west corner; y grows southwards
+METRES_PER_DEGREE = 111_320
+
+
+def project(lat, lon):
+    x = (lon - LON0) * math.cos(math.radians(40.73)) * METRES_PER_DEGREE
+    y = (LAT0 - lat) * METRES_PER_DEGREE
+    return round(x / METRES_PER_UNIT), round(y / METRES_PER_UNIT)
+
+
+def rows(archive, name):
+    with archive.open(name) as handle:
+        yield from csv.DictReader(io.TextIOWrapper(handle, encoding="utf-8-sig"))
+
+
+def simplify(points):
+    """Douglas-Peucker."""
+    if len(points) < 3:
+        return points
+    (ax, ay), (bx, by) = points[0], points[-1]
+    length = math.hypot(bx - ax, by - ay) or 1
+    worst, index = 0, 0
+    for i in range(1, len(points) - 1):
+        px, py = points[i]
+        distance = abs((bx - ax) * (ay - py) - (ax - px) * (by - ay)) / length
+        if distance > worst:
+            worst, index = distance, i
+    if worst <= SIMPLIFY_UNITS:
+        return [points[0], points[-1]]
+    return simplify(points[: index + 1])[:-1] + simplify(points[index:])
+
+
+def route_lines(shapes):
+    """Merge a route's shapes into polylines that cover each stretch of track once."""
+    seen, lines = set(), []
+    for points in sorted(shapes, key=len, reverse=True):
+        run = []
+        for a, b in zip(points, points[1:]):
+            edge = (a, b) if a <= b else (b, a)
+            if a == b or edge in seen:
+                if len(run) > 1:
+                    lines.append(run)
+                run = []
+                continue
+            seen.add(edge)
+            run = run or [a]
+            run.append(b)
+        if len(run) > 1:
+            lines.append(run)
+    return [simplify(line) for line in lines]
+
+
+def build(archive):
+    shape_points = defaultdict(list)
+    for row in rows(archive, "shapes.txt"):
+        point = project(float(row["shape_pt_lat"]), float(row["shape_pt_lon"]))
+        shape_points[row["shape_id"]].append((int(row["shape_pt_sequence"]), point))
+
+    route_shapes, trip_route = defaultdict(set), {}
+    for row in rows(archive, "trips.txt"):
+        trip_route[row["trip_id"]] = row["route_id"]
+        if row["shape_id"]:
+            route_shapes[row["route_id"]].add(row["shape_id"])
+
+    stop_routes = defaultdict(set)
+    for row in rows(archive, "stop_times.txt"):
+        stop_routes[row["stop_id"][:3]].add(trip_route[row["trip_id"]])
+
+    routes = {}
+    for row in rows(archive, "routes.txt"):
+        route_id = row["route_id"]
+        shapes = [
+            [point for _, point in sorted(shape_points[shape_id])]
+            for shape_id in sorted(route_shapes[route_id])
+        ]
+        routes[route_id] = {
+            "name": row["route_short_name"],
+            "longName": row["route_long_name"],
+            "description": row["route_desc"],
+            "color": "#" + (row["route_color"] or "808183"),
+            "textColor": "#" + (row["route_text_color"] or "FFFFFF"),
+            "lines": [[c for point in line for c in point] for line in route_lines(shapes)],
+        }
+
+    stations = {}
+    for row in rows(archive, "stops.txt"):
+        if row["location_type"] == "1":
+            x, y = project(float(row["stop_lat"]), float(row["stop_lon"]))
+            stations[row["stop_id"]] = {
+                "name": row["stop_name"],
+                "x": x,
+                "y": y,
+                "routes": sorted(stop_routes[row["stop_id"]]),
+            }
+    return {"routes": routes, "stations": stations}
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv:
+        data = Path(argv[0]).read_bytes()
+    else:
+        print(f"Downloading {GTFS_URL}", flush=True)
+        context = ssl.create_default_context()
+        if Path("/etc/ssl/cert.pem").exists():  # python.org builds for macOS ship without any
+            context.load_verify_locations("/etc/ssl/cert.pem")
+        with urllib.request.urlopen(GTFS_URL, timeout=120, context=context) as response:
+            data = response.read()
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        result = build(archive)
+    OUT.parent.mkdir(exist_ok=True)
+    body = json.dumps(result, separators=(",", ":"), ensure_ascii=False)
+    OUT.write_text("// Generated by build_map.py from the MTA's GTFS schedule. Do not edit.\n"
+                   f"const MAP = {body};\n", encoding="utf-8")
+    print(f"Wrote {OUT}: {len(result['routes'])} routes, {len(result['stations'])} stations, "
+          f"{OUT.stat().st_size // 1024} KB")
+
+
+if __name__ == "__main__":
+    main()

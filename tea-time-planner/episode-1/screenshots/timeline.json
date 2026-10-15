@@ -1,0 +1,118 @@
+{
+ "t0": 1792095655.0,
+ "t0_note": "first prompt of the session",
+ "shots": [
+  {
+   "n": 1,
+   "file": "001-hello.jpg",
+   "t": 1792095715.0,
+   "view": "hello",
+   "note": "Hello World / Hello Olga (recreated later; no screenshot was taken then)",
+   "hash": "b52952f771b605a751dedf999f1b4f96aac34caa207602faa2190f84ba44bce4"
+  },
+  {
+   "n": 2,
+   "file": "002-table.jpg",
+   "t": 1792095800.601,
+   "view": "table",
+   "note": "Oval table, 7 girls, two glass teapots",
+   "hash": "8a7e44c95d1619fab781a233d163980edb66175bcdf28b5299d337a13af5ab94"
+  },
+  {
+   "n": 3,
+   "file": "003-table.jpg",
+   "t": 1792095880.595,
+   "view": "table",
+   "note": "Rectangular table: 3 + 3 + 1 at the head",
+   "hash": "3996d544e21865a3310af75d1a8aab02e2d8f612ba03197e26ca6178e7a5588d"
+  },
+  {
+   "n": 4,
+   "file": "004-table.jpg",
+   "t": 1792096015.848,
+   "view": "table",
+   "note": "Four sandwich platters on the table",
+   "hash": "3fd1d243e3f3715a7caeb82bdc35d40d0f36961699f5860ed7f12ab9e6c13064"
+  },
+  {
+   "n": 6,
+   "file": "006-food.jpg",
+   "t": 1792096613.444,
+   "view": "food",
+   "note": "Food view: first 3D sandwich plate",
+   "hash": "a3c5e71a36c70aba568a0f0c7e739b94847a977b97a2af0a512e3bc581ce43b8"
+  },
+  {
+   "n": 7,
+   "file": "007-table.jpg",
+   "t": 1792097846.299,
+   "view": "table",
+   "note": "First 3D table (half drawn because of a bug, narrow pane)",
+   "hash": "e8c61d19485a1382443f36d22744a1ccec2a82ba75cec2ebe0d686739d75071a"
+  },
+  {
+   "n": 8,
+   "file": "008-table.jpg",
+   "t": 1792097882.111,
+   "view": "table",
+   "note": "3D British table, fixed",
+   "hash": "dbfff1feb659b27913db8a6bc81a48c02361ebf8395d67a63906861cc594618a"
+  },
+  {
+   "n": 11,
+   "file": "011-food.jpg",
+   "t": 1792098296.4685123,
+   "view": "food",
+   "note": "First automatic snapshot",
+   "hash": "84c40a7a5ded4febbdfb54994ca6ee734377798f06f4d11fa3e8714572be96e9"
+  },
+  {
+   "n": 14,
+   "file": "014-table.jpg",
+   "t": 1792098324.1785212,
+   "view": "table",
+   "note": "Saucer with gold rim; camera kept across reloads",
+   "hash": "0cf5ae4a661673beaf77ef8d4d380c7838f75ea5a9767bb8e245d72782f2ee8a"
+  },
+  {
+   "n": 33,
+   "file": "033-drinks.jpg",
+   "t": 1792099139.0240278,
+   "view": "drinks",
+   "note": "auto, after page change",
+   "hash": "782e3607c3de288c9bed6e0c1f004bf3508c1ba6f8ef07a8db835dd12b5f16eb"
+  },
+  {
+   "n": 74,
+   "file": "074-plan.jpg",
+   "t": 1792100339.926446,
+   "view": "plan",
+   "note": "auto, after page change",
+   "hash": "5db2750386252dfe7f18f43a5c3aa864a125ffd04da01311fa82be9a2209a163"
+  },
+  {
+   "n": 109,
+   "file": "109-table.jpg",
+   "t": 1792100804.705028,
+   "view": "table",
+   "note": "auto, after page change",
+   "hash": "0054cdf4953bf990ef4415c011eee6fcb6392ae98f9e71f1c4fd33295b4974e9"
+  },
+  {
+   "n": 113,
+   "file": "113-table.jpg",
+   "t": 1792100876.164901,
+   "view": "table",
+   "note": "auto, after page change",
+   "hash": "71ebbab761ca3e47c658891f7d213837e4837d800c7d38b7b47a7fe5b3389d90"
+  },
+  {
+   "n": 115,
+   "file": "115-drinks.jpg",
+   "t": 1792100876.164901,
+   "view": "drinks",
+   "note": "auto, after page change",
+   "hash": "7003007ea36fe1e180b6e28482a533445ab74fd42b39f9fb80f3136012dced91"
+  }
+ ]
+}

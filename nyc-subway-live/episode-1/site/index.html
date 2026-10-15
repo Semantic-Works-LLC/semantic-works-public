@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NYC Subway — live service alerts</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #151b23; --edge: #2a323d; --text: #e6edf3; --muted: #8b96a3;
+    --suspended: #ff375f; --delays: #ff9f0a; --change: #ffd60a; --info: #64d2ff; --accent: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid; grid-template: "head head" auto "map side" 1fr / 1fr 380px;
+    transition: grid-template-columns .25s ease;
+    background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+  header { grid-area: head; display: flex; align-items: baseline; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--edge); }
+  header h1 { font-size: 16px; margin: 0; white-space: nowrap; }
+  header button { flex-shrink: 0; white-space: nowrap; }
+  #tools { display: flex; align-items: stretch; gap: 4px; margin-left: auto; align-self: center; flex-shrink: 0; }
+  #zoomIn, #zoomOut, #showAll, #togglePanel { min-width: 32px; font-weight: 700; }
+  #showAll { display: flex; align-items: center; justify-content: center; }
+  body.noPanel { grid-template-columns: 1fr 0px; }
+  body.noPanel aside { border-left: 0; }
+  #notice { flex-shrink: 0; padding: 1px 8px; border: 1px solid var(--delays); border-radius: 10px; color: var(--delays); font-size: 12px; white-space: nowrap; }
+  #status { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #status.error { color: var(--suspended); }
+
+  #mapWrap { grid-area: map; position: relative; min-height: 0; min-width: 0; overflow: hidden; }
+  #map { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; }
+  #map.dragging { cursor: grabbing; }
+  .borough { fill: #232b36; font-weight: 700; font-size: calc(var(--upp) * 26px); text-anchor: middle; pointer-events: none; }
+  .route { fill: none; stroke-width: var(--line); stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .45; }
+  .hot { fill: none; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .hot { stroke-width: var(--line); }
+  .routeHit { fill: none; stroke: transparent; stroke-width: 14px; vector-effect: non-scaling-stroke; pointer-events: stroke; cursor: pointer; }
+  .picked.route { opacity: 1; }
+  /* A line with an alert, or the selected line, keeps its own look and has a wide outline under it that pulses,
+     in a lighter shade of the line's own colour. Only the outline's strength changes,
+     never a width, and nothing moves along the line, which would suggest a direction. */
+  .hot.glow { stroke-width: calc(var(--line) * 4.5); animation: glow 1.6s ease-in-out infinite; }
+  @keyframes glow { 0%, 100% { opacity: .15; } 50% { opacity: .9; } }
+  .stationFlash { r: calc(var(--upp) * var(--dot) * 1.9); pointer-events: none; animation: glow 1.6s ease-in-out infinite; }
+  @keyframes flash { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+  .station { r: calc(var(--upp) * var(--dot)); stroke: #ffffff73; stroke-width: 1; vector-effect: non-scaling-stroke; cursor: pointer; }
+  .station:hover, .station.picked { stroke: #fff; stroke-width: 3; }
+  .halo { r: calc(var(--upp) * var(--dot) * 1.8); opacity: .8; pointer-events: none; }
+  .halo.suspended, .halo.delays { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .label { display: none; fill: var(--text); font-size: calc(var(--upp) * 11px); pointer-events: none;
+           paint-order: stroke; stroke: var(--bg); stroke-width: calc(var(--upp) * 3px);
+           transform: translate(calc(var(--upp) * 9px), calc(var(--upp) * 4px)); }
+  #map.labels .label, .label.show { display: block; }
+  .suspended { --cat: var(--suspended); } .delays { --cat: var(--delays); }
+  .change { --cat: var(--change); } .info { --cat: var(--info); }
+  .halo { fill: var(--cat); stroke: var(--cat); }
+
+  #tooltip { position: absolute; display: none; max-width: 280px; padding: 8px 10px; background: #000d; border: 1px solid var(--edge);
+             border-radius: 6px; pointer-events: none; z-index: 2; }
+  #tooltip b { display: block; }
+  #tooltip small { color: var(--muted); }
+  #legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; }
+  /* A black dot standing for any station, with the alert's colour as the outline around it, as on the map. */
+  #legend i { display: inline-block; box-sizing: border-box; width: 8px; height: 8px; border-radius: 50%; background: #000;
+              border: 1px solid #ffffff73; box-shadow: 0 0 0 3px var(--cat); margin: 0 8px 0 3px; }
+
+  aside { grid-area: side; min-height: 0; overflow: hidden; background: var(--panel); border-left: 1px solid var(--edge); }
+  #panel { display: flex; flex-direction: column; width: 380px; height: 100%; }
+  #tabs { display: flex; border-bottom: 1px solid var(--edge); }
+  .tab { flex: 1; padding: 10px; background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); font-weight: 600; }
+  .tab.on { color: var(--text); border-bottom-color: #58a6ff; }
+  #events { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #list, #selection { flex: 1; overflow-y: auto; padding: 8px; }
+  #selection { padding: 14px; }
+  #selection h2 { font-size: 18px; margin: 0 0 6px; }
+  #selection h3 { font-size: 12px; margin: 18px 0 8px; padding-top: 12px; border-top: 1px solid var(--edge); color: var(--muted);
+                  text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: 8px; }
+  #selection h3 span { flex: 1; }
+  #selection h3 button { padding: 1px 9px; }
+  #selection .note { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  #selection .type { color: var(--cat); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  #selection .text { margin-top: 8px; color: #c2cbd5; white-space: pre-line; }
+  #selection .title { font-weight: 600; }
+  #selection a { color: #58a6ff; }
+  #selection dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+  #selection dt { color: var(--muted); }
+  #selection dd { margin: 0; }
+  #selection .stops button { margin: 0 4px 4px 0; padding: 2px 8px; font-size: 12px; }
+  .empty { color: var(--muted); padding: 16px 8px; }
+  .card { padding: 10px 12px; margin-bottom: 8px; background: var(--bg); border: 1px solid var(--edge); border-left: 4px solid var(--cat);
+          border-radius: 6px; cursor: pointer; }
+  .card:hover { border-color: #465160; border-left-color: var(--cat); }
+  .card.selected { outline: 2px solid #58a6ff; }
+  .card .type { color: var(--cat); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .card .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .card .more { display: none; margin-top: 8px; color: #c2cbd5; white-space: pre-line; }
+  .card.selected .more { display: block; }
+  .bullet { display: inline-block; min-width: 1.5em; height: 1.5em; padding: 0 .3em; border-radius: .75em; text-align: center;
+            font-size: 11px; line-height: 1.5em; font-weight: 700; vertical-align: 1px; margin: 0 1px; }
+
+  #timeline { padding: 10px 12px; border-bottom: 1px solid var(--edge); }
+  #foot { padding: 8px 12px 10px; border-top: 1px solid var(--edge); color: var(--muted); font-size: 12px; }
+  #timeline .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  button { background: #21262d; color: var(--text); border: 1px solid var(--edge); border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; }
+  button:hover { background: #2d343d; }
+  button:disabled { opacity: .4; cursor: default; }
+  #live.on { background: var(--accent); border-color: var(--accent); color: #04130a; font-weight: 700; }
+  #clock { font-variant-numeric: tabular-nums; }
+  #clock b { font-size: 15px; margin-right: 8px; }
+  #clock small { color: var(--muted); }
+  #track { position: relative; height: 40px; margin-top: 8px; }
+  #rail { position: absolute; left: 8px; right: 8px; bottom: 9px; height: 4px; border-radius: 2px; background: var(--edge); }
+  #fill { position: absolute; top: 0; bottom: 0; border-radius: 2px; background: #58a6ff; }
+  /* Two sliders on one rail: only their handles take the pointer, so both can be reached. */
+  .range { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 22px; margin: 0; background: none;
+           -webkit-appearance: none; appearance: none; pointer-events: none; }
+  .range::-webkit-slider-runnable-track { height: 22px; background: none; }
+  .range::-webkit-slider-thumb { -webkit-appearance: none; box-sizing: border-box; width: 16px; height: 16px; margin-top: 3px; border-radius: 50%;
+                                 background: #58a6ff; border: 2px solid #fff; cursor: ew-resize; pointer-events: auto; }
+  .range::-moz-range-track { background: none; }
+  .range::-moz-range-thumb { box-sizing: border-box; width: 16px; height: 16px; border-radius: 50%; background: #58a6ff; border: 2px solid #fff;
+                             cursor: ew-resize; pointer-events: auto; }
+  #ticks { position: absolute; left: 8px; right: 8px; top: 0; height: 18px; }
+  #ticks i { position: absolute; top: 0; width: 6px; height: 18px; margin-left: -3px; border-radius: 3px; background: var(--info);
+             box-shadow: 0 0 0 1px var(--panel); cursor: pointer; }
+  #ticks i:hover { background: #fff; }
+  #ticks i.on { background: var(--delays); }
+  select { background: #21262d; color: var(--text); border: 1px solid var(--edge); border-radius: 6px; padding: 5px 6px; font: inherit; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NYC Subway — live service alerts</h1>
+  <span id="notice" title="This is an experiment. It is not made, endorsed or checked by the MTA or the NYC Subway, and what it shows may be late or wrong.">Experimental · not an official MTA or NYC Subway product</span>
+  <span id="status">Connecting…</span>
+  <div id="tools">
+    <button id="live" class="on" title="Return to the present">● Live</button>
+    <button id="zoomIn" title="Zoom in">+</button>
+    <button id="zoomOut" title="Zoom out">−</button>
+    <button id="showAll" title="Show the whole map">
+      <svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9"/>
+      </svg>
+    </button>
+    <button id="togglePanel"></button>
+  </div>
+</header>
+
+<div id="mapWrap">
+  <svg id="map" xmlns="http://www.w3.org/2000/svg">
+    <g id="boroughs"></g>
+    <g id="routes"></g>
+    <g id="routeHits"></g>
+    <g id="hotRoutes"></g>
+    <g id="halos"></g>
+    <g id="stationFlashes"></g>
+    <g id="stations"></g>
+    <g id="labels"></g>
+  </svg>
+  <div id="tooltip"></div>
+</div>
+
+<aside>
+  <div id="panel">
+    <div id="tabs">
+      <button id="tabEvents" class="tab">Events</button>
+      <button id="tabSelection" class="tab">Selection</button>
+    </div>
+    <div id="events">
+      <div id="timeline">
+        <div id="clock"><b id="clockTime">—</b><small id="clockNote"></small></div>
+        <div id="track">
+          <div id="ticks"></div>
+          <div id="rail"><div id="fill"></div></div>
+          <input id="sliderFrom" class="range" type="range" step="1" title="Start of the range of events listed">
+          <input id="slider" class="range" type="range" step="1" title="The moment shown on the map, and the end of the range">
+        </div>
+        <div class="row">
+          <select id="span" title="How much time the slider covers">
+            <option value="900">Last 15 min</option>
+            <option value="3600">Last hour</option>
+            <option value="21600">Last 6 hours</option>
+            <option value="86400">Last 24 hours</option>
+            <option value="0" selected>All history</option>
+          </select>
+        </div>
+      </div>
+      <div id="list"></div>
+      <div id="foot">
+        <div id="listFoot"></div>
+        <div id="legend">
+          <span class="suspended"><i></i>Suspended</span>
+          <span class="delays"><i></i>Delays</span>
+          <span class="change"><i></i>Service change</span>
+          <span class="info"><i></i>Notice</span>
+        </div>
+      </div>
+    </div>
+    <div id="selection"></div>
+  </div>
+</aside>
+
+
+<script src="map-data.js"></script>
+<script src="art-data.js"></script>  <!-- optional: built locally by build_art.py -->
+<script src="station-data.js"></script>
+<script>
+"use strict";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const POLL_MS = 5000;  // how often the page asks its own server; the server asks the MTA every 30 s
+const CATEGORY_ORDER = ["suspended", "delays", "change", "info"];
+const BOROUGHS = [["Manhattan", 40.775, -74.025], ["The Bronx", 40.868, -73.80], ["Queens", 40.715, -73.775],
+                  ["Brooklyn", 40.625, -73.905], ["Staten Island", 40.60, -74.17]];
+
+const $ = id => document.getElementById(id);
+const svg = $("map");
+const state = {
+  events: [],      // change log from the server: {t, add: [alert], del: [id]}
+  next: 0,         // index of the first event not yet fetched
+  now: 0,          // the server's clock at the last poll, in seconds
+  checked: null,   // when the server last fetched the MTA feed
+  error: null,
+  live: true,
+  viewT: 0,        // the moment being shown
+  selected: null,  // alert id picked in the list; at most one of this, station and route is set
+  station: null,   // station id picked on the map
+  route: null,     // line id picked on the map
+  tab: "events",   // which tab of the side panel is showing: "events" or "selection"
+  panel: true,     // whether the side panel is slid in
+  span: 0,         // seconds of history the slider covers, counted back from now; 0 for all of it
+  from: null,      // start of the range of events listed, set with the left handle; null for the start of the period
+  tick: null,      // time of the event mark clicked on the timeline, while the list shows only what arrived then
+  artIndex: 0,     // which artwork the Selection tab shows
+};
+
+/* ---------- helpers ---------- */
+
+function el(name, attrs, parent) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const key in attrs) node.setAttribute(key, attrs[key]);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+function html(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+// Same projection as build_map.py.
+function project(lat, lon) {
+  return [(lon + 74.27) * Math.cos(40.73 * Math.PI / 180) * 111320 / 5, (40.92 - lat) * 111320 / 5];
+}
+
+const timeFormat = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", month: "short",
+  day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
+const formatTime = seconds => timeFormat.format(new Date(seconds * 1000));
+
+function formatSpan(seconds) {
+  if (seconds < 60) return seconds + " s";
+  if (seconds < 3600) return Math.round(seconds / 60) + " min";
+  if (seconds < 172800) return (seconds / 3600).toFixed(1) + " h";
+  return Math.round(seconds / 86400) + " days";
+}
+
+function category(alert) {
+  if (/suspend/i.test(alert.type)) return "suspended";
+  if (/delay/i.test(alert.type)) return "delays";
+  if (/notice|boarding|extra service|special schedule/i.test(alert.type)) return "info";
+  return "change";
+}
+
+const routeByName = {};
+for (const id in MAP.routes) routeByName[MAP.routes[id].name] = id;
+const findRoute = name => MAP.routes[name] ? name : routeByName[name] || (MAP.routes[name.replace(/X$/, "")] ? name.replace(/X$/, "") : null);
+
+// Route colours are picked for white paper; lift the ones too dark to see on this background.
+function lineColor(routeId) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(MAP.routes[routeId].color.slice(i, i + 2), 16));
+  if (0.2126 * r + 0.7152 * g + 0.0722 * b > 60) return MAP.routes[routeId].color;
+  return `rgb(${[r, g, b].map(c => Math.round(c + (255 - c) * 0.35)).join(",")})`;
+}
+
+// A lighter shade of a line's colour, a third of the way to white, for its pulsing outline.
+function brightColor(routeId) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(MAP.routes[routeId].color.slice(i, i + 2), 16));
+  return `rgb(${[r, g, b].map(c => Math.round(c + (255 - c) / 3)).join(",")})`;
+}
+
+function bullet(routeId) {
+  const route = MAP.routes[routeId];
+  const node = html("span", "bullet", route.name);
+  node.style.background = route.color;
+  node.style.color = route.textColor;
+  return node;
+}
+
+// Alert text marks routes as [A]; show those as coloured bullets.
+function richText(text, parent) {
+  for (const part of text.split(/(\[[A-Z0-9]{1,3}\])/)) {
+    const routeId = /^\[.+\]$/.test(part) && findRoute(part.slice(1, -1));
+    parent.appendChild(routeId ? bullet(routeId) : document.createTextNode(part));
+  }
+  return parent;
+}
+
+/* ---------- history ---------- */
+
+// Replay the change log up to a moment, then keep the alerts in effect at that moment.
+function alertsAt(t) {
+  const known = new Map();
+  for (const event of state.events) {
+    if (event.t > t) break;
+    for (const alert of event.add) known.set(alert.id, alert);
+    for (const id of event.del) known.delete(id);
+  }
+  const active = [...known.values()].filter(alert =>
+    !alert.periods.length || alert.periods.some(([start, end]) => start <= t && (end == null || t <= end)));
+  return active.sort((a, b) =>
+    CATEGORY_ORDER.indexOf(category(a)) - CATEGORY_ORDER.indexOf(category(b)) || (b.updated || 0) - (a.updated || 0));
+}
+
+// Where the slider's period begins.
+function periodStart() {
+  const first = state.events.length ? state.events[0].t : state.now;
+  return state.span ? Math.max(first, state.now - state.span) : first;
+}
+
+// The alerts that arrived (were new or updated) between two moments, newest arrival first.
+function arrivals(from, to) {
+  const found = new Map();
+  for (const event of state.events) {
+    if (event.t < from || event.t > to) continue;
+    for (const alert of event.add) found.set(alert.id, { alert, t: event.t });
+  }
+  return [...found.values()].sort((a, b) => b.t - a.t ||
+    CATEGORY_ORDER.indexOf(category(a.alert)) - CATEGORY_ORDER.indexOf(category(b.alert))).map(entry => entry.alert);
+}
+
+// Where the range of events listed begins: the left handle, kept inside the period and not after the moment shown.
+function rangeStart() {
+  return Math.min(Math.max(state.from ?? 0, periodStart()), state.viewT);
+}
+
+async function poll() {
+  try {
+    const response = await fetch("/api/history?since=" + state.next);
+    const data = await response.json();
+    state.events.push(...data.events);
+    state.next = data.next;
+    state.now = data.now;
+    state.checked = data.checked;
+    state.error = data.error;
+  } catch (problem) {
+    state.error = "Cannot reach the local server";
+  }
+  if (state.live) state.viewT = state.now;
+  render();
+}
+
+/* ---------- map ---------- */
+
+const view = { x: 0, y: 0, w: 0, h: 0 };
+const stationNodes = {}, labelNodes = {}, routeNodes = {};
+
+function buildMap() {
+  for (const [name, lat, lon] of BOROUGHS) {
+    const [x, y] = project(lat, lon);
+    el("text", { class: "borough", x, y }, $("boroughs")).textContent = name;
+  }
+  for (const id in MAP.routes) {
+    routeNodes[id] = el("path", { class: "route", d: routePath(id), stroke: lineColor(id) }, $("routes"));
+    // A wider target for clicks. Where lines share track the main one is on top: earlier lines over later, no express variants.
+    if (!/X$/.test(id)) $("routeHits").prepend(el("path", { class: "routeHit", d: routePath(id), "data-id": id }));
+  }
+  for (const id in MAP.stations) {
+    const station = MAP.stations[id];
+    stationNodes[id] = el("circle", { class: "station", cx: station.x, cy: station.y, "data-id": id,
+      fill: station.routes.length ? lineColor(station.routes[0]) : "#808183" }, $("stations"));
+    labelNodes[id] = el("text", { class: "label", x: station.x, y: station.y }, $("labels"));
+    labelNodes[id].textContent = station.name;
+  }
+}
+
+function routePath(id) {
+  return MAP.routes[id].lines.map(line => {
+    let d = "M" + line[0] + " " + line[1];
+    for (let i = 2; i < line.length; i += 2) d += "L" + line[i] + " " + line[i + 1];
+    return d;
+  }).join("");
+}
+
+function fitView() {
+  const xs = Object.values(MAP.stations).map(s => s.x), ys = Object.values(MAP.stations).map(s => s.y);
+  const pad = 300, aspect = svg.clientWidth / svg.clientHeight;
+  let w = Math.max(...xs) - Math.min(...xs) + pad * 2, h = Math.max(...ys) - Math.min(...ys) + pad * 2;
+  if (w / h < aspect) w = h * aspect; else h = w / aspect;
+  view.w = w; view.h = h;
+  view.x = (Math.max(...xs) + Math.min(...xs)) / 2 - w / 2;
+  view.y = (Math.max(...ys) + Math.min(...ys)) / 2 - h / 2;
+  applyView();
+}
+
+function applyView() {
+  svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
+  const unitsPerPixel = view.w / svg.clientWidth;
+  svg.style.setProperty("--upp", unitsPerPixel);
+  svg.style.setProperty("--dot", Math.min(11, Math.max(3.2, 10 / Math.sqrt(unitsPerPixel))));
+  svg.style.setProperty("--line", Math.min(6, Math.max(1.5, 5 / Math.sqrt(unitsPerPixel))) + "px");
+  svg.classList.toggle("labels", unitsPerPixel < 2.2);
+}
+
+// Scales the view by a factor, keeping the point at (fx, fy) of the map's width and height where it is.
+function zoomBy(factor, fx, fy) {
+  glide = null;
+  Object.assign(view, zoomed(view, factor, fx, fy));
+  applyView();
+}
+
+function zoomed(from, factor, fx, fy) {
+  if (!from.w) return { ...from };  // the map has not been laid out yet
+  const w = Math.min(14000, Math.max(250, from.w * factor));
+  const h = w * from.h / from.w;
+  return { x: from.x + (from.w - w) * fx, y: from.y + (from.h - h) * fy, w, h };
+}
+
+// The same zoom about the centre, but moving there over a quarter of a second. A second click
+// while it is still moving carries on from where the first was heading.
+let glide = null;
+function zoomSmoothly(factor) {
+  const from = { ...view }, to = zoomed(glide ? glide.to : view, factor, 0.5, 0.5), started = performance.now();
+  const mine = glide = { to };
+  requestAnimationFrame(function step(now) {
+    if (glide !== mine) return;
+    const t = Math.min(1, (now - started) / 250), eased = 1 - (1 - t) ** 3;
+    for (const key of ["x", "y", "w", "h"]) view[key] = from[key] + (to[key] - from[key]) * eased;
+    applyView();
+    if (t < 1) requestAnimationFrame(step); else glide = null;
+  });
+}
+
+function setUpPanZoom() {
+  let drag = null;
+  svg.addEventListener("wheel", event => {
+    event.preventDefault();
+    const box = svg.getBoundingClientRect();
+    zoomBy(Math.exp(event.deltaY * 0.0015), (event.clientX - box.left) / box.width, (event.clientY - box.top) / box.height);
+  }, { passive: false });
+  $("zoomIn").addEventListener("click", () => zoomSmoothly(1 / 1.5));
+  $("zoomOut").addEventListener("click", () => zoomSmoothly(1.5));
+  $("showAll").addEventListener("click", fitView);
+  svg.addEventListener("pointerdown", event => {
+    drag = { x: event.clientX, y: event.clientY, moved: false };
+  });
+  window.addEventListener("pointermove", event => {
+    if (!drag) return;
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    drag.moved = true;
+    svg.classList.add("dragging");
+    const scale = view.w / svg.clientWidth;
+    view.x -= dx * scale; view.y -= dy * scale;
+    drag.x = event.clientX; drag.y = event.clientY;
+    applyView();
+  });
+  window.addEventListener("pointerup", event => {
+    if (drag && !drag.moved) {
+      // A click on a station or a line selects it; a click anywhere else on the map clears the selection.
+      if (event.target.classList.contains("station")) pickStation(event.target.dataset.id);
+      else if (event.target.classList.contains("routeHit")) pickRoute(event.target.dataset.id);
+      else if (svg.contains(event.target)) select(null);
+    }
+    drag = null;
+    svg.classList.remove("dragging");
+  });
+  // Also fires once the page is first laid out, which is when the map can be fitted.
+  new ResizeObserver(() => {
+    if (!svg.clientWidth || !svg.clientHeight) return;
+    if (!view.w) return fitView();
+    view.h = view.w * svg.clientHeight / svg.clientWidth;
+    applyView();
+  }).observe(svg);
+}
+
+function setUpTooltip() {
+  const tooltip = $("tooltip");
+  svg.addEventListener("pointermove", event => {
+    const id = event.target.dataset.id;
+    if (event.target.classList.contains("station")) {
+      const station = MAP.stations[id];
+      const here = alertsAt(state.viewT).filter(alert => alert.stops.includes(id));
+      tooltip.replaceChildren(html("b", "", station.name));
+      for (const routeId of station.routes) tooltip.appendChild(bullet(routeId));
+      tooltip.appendChild(html("small", "", here.length ? ` ${here.length} alert${here.length > 1 ? "s" : ""} — click for details` : " No alerts"));
+    } else if (event.target.classList.contains("routeHit")) {
+      tooltip.replaceChildren(bullet(id), html("small", "", " " + MAP.routes[id].longName));
+    } else {
+      tooltip.style.display = "none";
+      return;
+    }
+    const box = $("mapWrap").getBoundingClientRect();
+    tooltip.style.display = "block";
+    tooltip.style.left = event.clientX - box.left + 14 + "px";
+    tooltip.style.top = event.clientY - box.top + 14 + "px";
+  });
+  svg.addEventListener("pointerleave", () => { tooltip.style.display = "none"; });
+}
+
+/* ---------- selection ---------- */
+
+// Selects a station, a line or an alert, or nothing. Selecting what is already selected clears it.
+function select(kind, id) {
+  const again = id === { station: state.station, route: state.route, alert: state.selected }[kind];
+  state.station = kind === "station" && !again ? id : null;
+  state.route = kind === "route" && !again ? id : null;
+  state.selected = kind === "alert" && !again ? id : null;
+  state.artIndex = 0;
+  render();
+}
+
+// A station picked on the map also brings up the Selection tab.
+function pickStation(id) {
+  if (state.station !== id) { state.tab = "selection"; state.panel = true; }
+  select("station", id);
+}
+
+function pickRoute(id) {
+  if (state.route !== id) { state.tab = "selection"; state.panel = true; }
+  select("route", id);
+}
+
+// Alert text names lines loosely (6X, SIR); this is whether an alert covers a line on the map.
+const onRoute = (alert, routeId) => alert.routes.some(name => findRoute(name) === routeId);
+
+function drawAlerts(alerts, chosen) {
+  const hotRoutes = $("hotRoutes"), halos = $("halos");
+  for (const id in labelNodes) labelNodes[id].classList.remove("show");
+  for (const id in stationNodes) stationNodes[id].classList.toggle("picked", id === state.station);
+  for (const id in routeNodes) routeNodes[id].classList.toggle("picked", id === state.route);
+
+  const shown = chosen ? [chosen] : alerts;
+  const stationCategory = {}, routeCategory = {};
+  for (const alert of shown.slice().reverse()) {  // most severe last, so it wins
+    const stops = alert.stops.filter(id => MAP.stations[id]);
+    if (stops.length) {
+      for (const id of stops) stationCategory[id] = category(alert);
+    } else {
+      for (const name of alert.routes) {
+        const id = findRoute(name);
+        if (id) routeCategory[id] = category(alert);
+      }
+    }
+  }
+  // The pulsing shapes are rebuilt only when they change: rebuilding at every refresh restarted their animation with a jump.
+  const hot = [...new Set([...Object.keys(routeCategory), ...(state.route ? [state.route] : [])])];
+  if (changed(hotRoutes, hot.map(id => id + (routeCategory[id] || "")).join("|") + "/" + state.route)) {
+    hotRoutes.replaceChildren();
+    for (const id of hot) {
+      const d = routePath(id);
+      el("path", { class: "hot glow", d, stroke: brightColor(id) }, hotRoutes);
+      el("path", { class: "hot base", d, stroke: lineColor(id) }, hotRoutes);
+    }
+    // The stations of the selected line pulse with it. Built in the same step as the line so the two keep time.
+    $("stationFlashes").replaceChildren();
+    for (const id in MAP.stations) {
+      const station = MAP.stations[id];
+      if (state.route && station.routes.includes(state.route)) {
+        el("circle", { class: "stationFlash", cx: station.x, cy: station.y, fill: brightColor(state.route) }, $("stationFlashes"));
+      }
+    }
+  }
+  if (changed(halos, Object.entries(stationCategory).join("|"))) {
+    halos.replaceChildren();
+    for (const id in stationCategory) {
+      const station = MAP.stations[id];
+      el("circle", { class: "halo " + stationCategory[id], cx: station.x, cy: station.y }, halos);
+    }
+  }
+  if (state.selected) for (const id in stationCategory) labelNodes[id].classList.add("show");
+  if (state.station) labelNodes[state.station].classList.add("show");
+}
+
+/* ---------- side panel ---------- */
+
+function alertCard(alert) {
+  const card = html("div", `card ${category(alert)}${alert.id === state.selected ? " selected" : ""}`);
+  const top = html("div", "type", alert.type + " ");
+  for (const name of alert.routes) {
+    const id = findRoute(name);
+    if (id) top.appendChild(bullet(id));
+  }
+  card.appendChild(top);
+  card.appendChild(richText(alert.header, html("div", "head")));
+  const posted = alert.created ? "Posted " + formatTime(alert.created) : "";
+  card.appendChild(html("div", "meta", [alert.when, posted].filter(Boolean).join(" · ")));
+  card.addEventListener("click", () => select("alert", alert.id));
+  return card;
+}
+
+// Rebuilds a scrolling area only when what it shows has changed, so the regular refresh does not reset its scroll.
+function changed(node, key) {
+  if (node.dataset.key === key) return false;
+  node.dataset.key = key;
+  return true;
+}
+
+function drawPanel(alerts, listed, chosen) {
+  document.body.classList.toggle("noPanel", !state.panel);
+  $("togglePanel").textContent = state.panel ? "▶" : "◀";
+  $("togglePanel").title = state.panel ? "Hide the side panel" : "Show the side panel";
+  $("tabEvents").textContent = `Events (${listed.length})`;
+  $("tabEvents").classList.toggle("on", state.tab === "events");
+  $("tabSelection").classList.toggle("on", state.tab === "selection");
+  $("events").style.display = state.tab === "events" ? "flex" : "none";
+  $("selection").style.display = state.tab === "selection" ? "block" : "none";
+  drawList(listed);
+  drawSelection(alerts, chosen);
+}
+
+// The list shows what arrived: at the clicked mark, or else from the start of the slider's period to the moment shown.
+function drawList(listed) {
+  const list = $("list"), count = `${listed.length} event${listed.length === 1 ? "" : "s"}`;
+  $("listFoot").textContent = state.tick != null ? `${count} arrived at ${formatTime(state.tick)}`
+    : `${count} arrived from ${formatTime(rangeStart())} to ${formatTime(state.viewT)}`;
+  if (!changed(list, [state.selected, state.events.length, ...listed.map(alert => alert.id)].join("|"))) return;
+  list.replaceChildren(...listed.map(alertCard));
+  if (!listed.length) {
+    list.appendChild(html("div", "empty", state.events.length ? "No events arrived in this period." : "Waiting for the first update…"));
+  }
+}
+
+function heading(text, parent) {
+  const node = html("h3");
+  node.appendChild(html("span", "", text));
+  return parent.appendChild(node);
+}
+
+function drawSelection(alerts, alert) {
+  const box = $("selection");
+  const here = state.station ? alerts.filter(candidate => candidate.stops.includes(state.station))
+    : state.route ? alerts.filter(candidate => onRoute(candidate, state.route)) : [];
+  if (!changed(box, [state.station, state.route, state.selected, state.artIndex, ...here.map(candidate => candidate.id)].join("|"))) return;
+  box.replaceChildren();
+  box.className = "";
+  if (state.station) drawStation(box, state.station, here);
+  else if (state.route) drawRoute(box, state.route, here);
+  else if (alert) drawAlert(box, alert);
+  else box.appendChild(html("div", "empty", "Nothing is selected. Click a station or a line on the map, or an event in the Events tab."));
+}
+
+function drawStation(box, id, here) {
+  const station = MAP.stations[id], info = STATION_INFO[id], works = (typeof ART !== "undefined" && ART[id]) || [];
+  box.appendChild(html("h2", "", station.name));
+  const routes = box.appendChild(html("div"));
+  for (const routeId of station.routes) routes.appendChild(routeButton(routeId));
+
+  heading(here.length ? `Alerts (${here.length})` : "Alerts", box);
+  for (const alert of here) box.appendChild(alertCard(alert));
+  if (!here.length) box.appendChild(html("div", "note", "No alerts in effect at this station."));
+
+  heading("About the station", box);
+  if (info) {
+    const facts = box.appendChild(html("dl"));
+    for (const [label, value] of [["Borough", info.borough], ["Line", `${info.line} (${info.division})`],
+        ["Structure", info.structure], ["Accessibility", info.accessible],
+        ["Northbound", info.north], ["Southbound", info.south]]) {
+      if (!value) continue;
+      facts.appendChild(html("dt", "", label));
+      facts.appendChild(html("dd", "", value));
+    }
+  } else {
+    box.appendChild(html("div", "note", "The MTA station list has no entry for this station."));
+  }
+
+  const index = state.artIndex = Math.min(state.artIndex, Math.max(works.length - 1, 0)), work = works[index];
+  const artHead = heading(works.length > 1 ? `Art ${index + 1} of ${works.length}` : "Art", box);
+  if (works.length > 1) {
+    for (const [label, step] of [["‹", -1], ["›", 1]]) {
+      const button = html("button", "", label);
+      button.title = step < 0 ? "Previous artwork" : "Next artwork";
+      button.addEventListener("click", () => {
+        state.artIndex = (index + step + works.length) % works.length;
+        render();
+      });
+      artHead.appendChild(button);
+    }
+  }
+  if (!work) {
+    box.appendChild(html("div", "note", typeof ART === "undefined"
+      ? "Station art is not included. Run fetch_static.py and then build_art.py to add it."
+      : "No artwork listed in the MTA art catalog."));
+    return;
+  }
+  box.appendChild(html("div", "title", work.title));
+  box.appendChild(html("div", "note", [work.artist, work.date, work.material].filter(Boolean).join(" · ")));
+  box.appendChild(html("div", "text", work.description));
+  if (work.link) {
+    const link = html("a", "", "See it on mta.info ↗");
+    link.href = work.link;
+    link.target = "_blank";
+    link.rel = "noopener";
+    box.appendChild(html("div", "note")).appendChild(link);
+  }
+}
+
+// A line's bullet that selects the line when clicked.
+function routeButton(routeId) {
+  const node = bullet(routeId);
+  node.style.cursor = "pointer";
+  node.title = "Select the " + MAP.routes[routeId].name + " line";
+  node.addEventListener("click", () => pickRoute(routeId));
+  return node;
+}
+
+function stationButtons(ids, parent) {
+  const buttons = parent.appendChild(html("div", "stops"));
+  for (const id of ids) {
+    const button = html("button", "", MAP.stations[id].name);
+    button.addEventListener("click", () => pickStation(id));
+    buttons.appendChild(button);
+  }
+}
+
+function drawRoute(box, id, here) {
+  const route = MAP.routes[id];
+  const title = box.appendChild(html("h2"));
+  title.appendChild(bullet(id));
+  title.appendChild(document.createTextNode(" " + route.longName));
+
+  heading(here.length ? `Alerts (${here.length})` : "Alerts", box);
+  for (const alert of here) box.appendChild(alertCard(alert));
+  if (!here.length) box.appendChild(html("div", "note", "No alerts in effect on this line."));
+
+  heading("About the line", box);
+  box.appendChild(html("div", "text", route.description || "The MTA schedule has no description for this line."));
+
+  const stops = Object.keys(MAP.stations).filter(stationId => MAP.stations[stationId].routes.includes(id))
+    .sort((a, b) => MAP.stations[a].y - MAP.stations[b].y);
+  heading(`Stations (${stops.length}), north to south`, box);
+  stationButtons(stops, box);
+}
+
+function drawAlert(box, alert) {
+  box.className = category(alert);
+  const top = box.appendChild(html("div", "type", alert.type + " "));
+  for (const id of new Set(alert.routes.map(findRoute).filter(Boolean))) top.appendChild(routeButton(id));
+  box.appendChild(richText(alert.header, html("h2")));
+  const posted = alert.created ? "Posted " + formatTime(alert.created) : "";
+  box.appendChild(html("div", "note", [alert.when, posted].filter(Boolean).join(" · ")));
+  if (alert.description) box.appendChild(richText(alert.description, html("div", "text")));
+
+  const stops = alert.stops.filter(id => MAP.stations[id]);
+  heading(stops.length ? `Stations affected (${stops.length})` : "Stations affected", box);
+  if (!stops.length) box.appendChild(html("div", "note", "This alert names whole lines, not stations."));
+  stationButtons(stops, box);
+}
+
+function setUpPanel() {
+  $("togglePanel").addEventListener("click", () => { state.panel = !state.panel; render(); });
+  $("tabEvents").addEventListener("click", () => { state.tab = "events"; render(); });
+  $("tabSelection").addEventListener("click", () => { state.tab = "selection"; render(); });
+}
+
+/* ---------- timeline ---------- */
+
+function drawTimeline() {
+  const slider = $("slider"), sliderFrom = $("sliderFrom"), first = state.events.length ? state.events[0].t : state.now;
+  const start = periodStart();
+  slider.min = sliderFrom.min = start;
+  slider.max = sliderFrom.max = Math.max(state.now, start + 1);
+  slider.value = state.viewT;
+  sliderFrom.value = rangeStart();
+  $("fill").style.left = (rangeStart() - start) / (slider.max - start) * 100 + "%";
+  $("fill").style.right = (slider.max - Math.max(state.viewT, start)) / (slider.max - start) * 100 + "%";
+  $("live").classList.toggle("on", state.live);
+  $("clockTime").textContent = state.viewT ? formatTime(state.viewT) : "—";
+  $("clockNote").textContent = state.live
+    ? `Live · recording for ${formatSpan(state.now - first)}`
+    : `${formatSpan(state.now - state.viewT)} ago`;
+
+  const span = slider.max - slider.min;
+  $("ticks").replaceChildren(...state.events.filter(event => event.t >= start).map(event => {
+    const tick = html("i", event.t === state.tick ? "on" : "");
+    tick.style.left = (event.t - start) / span * 100 + "%";
+    tick.title = `${formatTime(event.t)}: ${event.add.length} new or updated, ${event.del.length} removed. Click to put the range around it.`;
+    // On press, not on click: the ticks are redrawn at every refresh, which would swallow a click in progress.
+    tick.addEventListener("pointerdown", () => bracket(event.t));
+    return tick;
+  }));
+}
+
+// Puts the two handles just either side of an event mark, so the range holds that mark's events and no other's.
+function bracket(t) {
+  const times = state.events.map(event => event.t), index = times.indexOf(t);
+  const pad = Math.max(1, Math.round(($("slider").max - $("slider").min) * 0.05));
+  const low = Math.max(t - pad, periodStart(), index > 0 ? times[index - 1] + 1 : 0);
+  const high = Math.min(t + pad, state.now, index < times.length - 1 ? times[index + 1] - 1 : state.now);
+  goTo(high);
+  state.from = low <= periodStart() ? null : low;
+  state.tick = t;
+  render();
+}
+
+// Moves the view to a moment, and puts the list back to showing the slider's period.
+function goTo(t) {
+  state.tick = null;
+  state.live = t >= state.now;
+  state.viewT = state.live ? state.now : t;
+  state.selected = null;
+  render();
+}
+
+function setUpTimeline() {
+  // The right handle is the moment shown; it cannot pass the left one.
+  $("slider").addEventListener("input", event => goTo(Math.max(Number(event.target.value), rangeStart())));
+  // The left handle only narrows the list. Back at the far left it follows the start of the period again.
+  $("sliderFrom").addEventListener("input", event => {
+    const value = Math.min(Number(event.target.value), state.viewT);
+    state.from = value <= periodStart() ? null : value;
+    state.tick = null;
+    render();
+  });
+  $("span").addEventListener("change", event => { state.span = Number(event.target.value); render(); });
+  $("live").addEventListener("click", () => goTo(state.now));
+}
+
+/* ---------- render ---------- */
+
+function drawStatus() {
+  const status = $("status");
+  status.classList.toggle("error", Boolean(state.error));
+  if (state.error) status.textContent = `Update failed (${state.error})` + (state.checked ? ` · last good update ${formatTime(state.checked)}` : "");
+  else status.textContent = state.checked ? `Last update from the MTA: ${formatTime(state.checked)} · checks every 30 s` : "Waiting for the first update…";
+}
+
+function render() {
+  const alerts = alertsAt(state.viewT);
+  const listed = state.tick != null ? arrivals(state.tick, state.tick) : arrivals(rangeStart(), state.viewT);
+  const chosen = state.selected && [...listed, ...alerts].find(alert => alert.id === state.selected);
+  if (!chosen) state.selected = null;
+  drawStatus();
+  drawAlerts(alerts, chosen);
+  drawPanel(alerts, listed, chosen);
+  drawTimeline();
+}
+
+buildMap();
+setUpPanZoom();
+setUpTooltip();
+setUpTimeline();
+setUpPanel();
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>

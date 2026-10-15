@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantic Works: Cyber Kitchen</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --hairline: #2c2c2a;
+      --floor-dining: #24211d;
+      --floor-kitchen: #1c2126;
+      --wall: #898781;
+      --wood: #6b4f34;
+      --seat: #3b3936;
+      --steel: #4a5158;
+      --free: #898781;
+      --arriving: #c3c2b7;
+      --menu: #ffe100;
+      --ready: #ff8a00;
+      --waiting: #ff2d2d;
+      --eating: #0ca30c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--page);
+      color: var(--text-primary);
+    }
+    main { padding: 16px 16px 24px; }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 12px; }
+    h1 { font-size: 1.5rem; margin: 0; }
+    .subtitle { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
+    .controls { margin-left: auto; display: flex; gap: 6px; position: relative; }
+    #picker {
+      position: absolute; top: calc(100% + 8px); right: 0; z-index: 10;
+      width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow-y: auto;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    }
+    #picker[hidden] { display: none; }
+    #picker-filter {
+      width: 100%; margin-top: 10px; padding: 6px 9px; font: inherit; font-size: 0.85rem;
+      color: var(--text-primary); background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px;
+    }
+    button {
+      font: inherit;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    button:hover { background: #262624; }
+    button[aria-pressed="true"] { border-color: var(--text-secondary); background: #2c2c2a; }
+
+    .card { background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px; padding: 12px; }
+    svg { display: block; width: 100%; height: 100%; }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 12px; }
+    .stat { background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 12px; }
+    .stat .value { font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .stat .label { color: var(--text-muted); font-size: 0.78rem; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; color: var(--text-secondary); font-size: 0.82rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .ring { width: 14px; height: 14px; border-radius: 4px; background: var(--c); }
+    .ring.free { background: var(--wood); border: 3px solid var(--free); }
+    .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 9px; font-weight: 700; }
+    .dot.waiter { background: #0d0d0d; border: 2px solid #fff; color: #fff; }
+    .dot.cook { background: #fff; color: #0d0d0d; }
+    .dot.guest { background: #3987e5; }
+
+    /* SVG parts */
+    .wall { fill: none; stroke: var(--wall); stroke-width: 4; stroke-linecap: square; }
+    .zone-label { fill: var(--text-muted); font-size: 13px; letter-spacing: 2px; }
+    .small-label { fill: var(--text-muted); font-size: 10px; }
+    .table-top { fill: var(--wood); stroke: var(--free); stroke-width: 3; transition: fill 200ms ease, stroke 200ms ease; }
+    .table.reserved .table-top { stroke: var(--arriving); }
+    .table.reading .table-top { fill: var(--menu); stroke: var(--menu); }
+    .table.ready .table-top, .table.ordering .table-top { fill: var(--ready); stroke: var(--ready); }
+    .table.waiting .table-top { fill: var(--waiting); stroke: var(--waiting); }
+    .table.eating .table-top { fill: var(--eating); stroke: var(--eating); }
+    .table.reading .table-num, .table.ready .table-num, .table.ordering .table-num,
+    .table.waiting .table-num, .table.eating .table-num { fill: #0d0d0d; }
+    .table-num { fill: #fff; font-size: 13px; font-weight: 600; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+    .seat { fill: var(--seat); }
+    .plate { fill: #ffffff; stroke: #0d0d0d; stroke-width: 1; visibility: hidden; }
+    .table.eating .plate.on { visibility: visible; }
+    .bubble { visibility: hidden; }
+    .table.ready .bubble { visibility: visible; animation: pulse 0.9s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: 0.35; } }
+    .steel { fill: var(--steel); stroke: #6a737b; stroke-width: 1.5; }
+    .burner { fill: #23272b; stroke: #6a737b; stroke-width: 1.5; }
+    .flame { fill: #eb6834; opacity: 0; }
+    .progress-track { fill: #23272b; }
+    .progress-bar { fill: #eb6834; }
+    .ticket { fill: #f5f2e6; stroke: #b9b39c; stroke-width: 0.8; }
+    .ticket-text { fill: #1a1a19; font-size: 9px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+    .staff-label { font-size: 10px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+    .guest { stroke: #0d0d0d; stroke-width: 1; }
+    .flame, .progress-track, .progress-bar { pointer-events: none; }
+    [data-selectable] { cursor: pointer; }
+    [data-selected] { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 6px #fff); }
+
+    /* layout: the workspace keeps one fixed height; opening the panel only narrows the live view */
+    .workspace { display: flex; align-items: stretch; width: 100%; height: clamp(360px, calc((100vw - 32px) * 0.55), calc(100vh - 230px)); }
+    .view-card { flex: 1; min-width: 0; height: 100%; }
+    .panel { width: 0; height: 100%; overflow: hidden; transition: width 250ms ease, margin-left 250ms ease; }
+    .panel.open { width: 340px; margin-left: 12px; }
+    .panel-inner { width: 340px; height: 100%; overflow-y: auto; background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px; padding: 16px; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .panel-head h2 { font-size: 0.8rem; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin: 0; }
+    .panel-head button { padding: 2px 9px; }
+    .about, .actors { border: 1px solid var(--hairline); border-radius: 10px; padding: 14px; background: var(--page); }
+    .about .kind { display: inline-block; font-size: 0.72rem; letter-spacing: 1px; text-transform: uppercase; color: var(--text-secondary); border: 1px solid var(--hairline); border-radius: 999px; padding: 2px 9px; }
+    .about h3 { font-size: 1.15rem; margin: 10px 0 12px; }
+    .about dt { font-size: 0.75rem; color: var(--text-muted); margin-top: 12px; }
+    .about dd { margin: 3px 0 0; font-size: 0.9rem; line-height: 1.45; color: var(--text-primary); white-space: pre-line; }
+    .about dl { margin: 0; }
+    .empty { color: var(--text-muted); font-size: 0.9rem; line-height: 1.45; margin: 0; }
+    .actors h3 { font-size: 1rem; margin: 0; }
+    .actors summary { font-size: 0.72rem; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin: 14px 0 6px; cursor: pointer; }
+    .actors .none { color: var(--text-muted); font-size: 0.78rem; margin: 0; }
+    .actors [data-group] { display: flex; flex-wrap: wrap; gap: 4px; }
+    .actor { font-size: 0.75rem; padding: 3px 8px; background: var(--surface); }
+    .actor[aria-pressed="true"] { border-color: #fff; background: #3a3a37; }
+    @media (max-width: 820px) {
+      .workspace { flex-direction: column; height: auto; }
+      .view-card { flex: none; height: auto; aspect-ratio: 1200 / 660; }
+      .panel { display: none; height: auto; }
+      .panel.open { display: block; width: 100%; margin: 12px 0 0; }
+      .panel-inner { width: 100%; height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Semantic Works: Cyber Kitchen</h1>
+      <p class="subtitle">Live view of the restaurant floor &mdash; simulated</p>
+      <div class="controls">
+        <button id="pause" aria-pressed="false">Pause</button>
+        <button class="speed" data-speed="1" aria-pressed="true">1&times;</button>
+        <button class="speed" data-speed="2" aria-pressed="false">2&times;</button>
+        <button class="speed" data-speed="4" aria-pressed="false">4&times;</button>
+        <button id="picker-toggle" aria-expanded="false" aria-controls="picker" aria-label="Find an object to select" title="Find an object to select">&#128269;</button>
+        <button id="panel-toggle" aria-pressed="false" aria-controls="panel">Show details</button>
+        <div class="actors" id="picker" hidden>
+          <h3>Select an object</h3>
+          <input id="picker-filter" type="search" placeholder="Filter by name, e.g. table or ticket 9" aria-label="Filter the list by name">
+          <div id="actor-list"></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="workspace">
+    <div class="card view-card">
+      <svg id="view" viewBox="0 52 1200 636" role="img" aria-label="Animated floor plan of the restaurant: dining room with twelve tables on the left, kitchen on the right">
+        <g id="floor"></g>
+        <g id="furniture"></g>
+        <g id="rail"></g>
+        <g id="pass"></g>
+        <g id="guests"></g>
+        <g id="staff"></g>
+      </svg>
+    </div>
+
+    <aside class="panel" id="panel" aria-label="Details panel">
+      <div class="panel-inner">
+        <div class="panel-head">
+          <h2>Details</h2>
+          <button id="panel-close" aria-label="Hide details panel">&times;</button>
+        </div>
+        <div id="about"></div>
+      </div>
+    </aside>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="value" id="s-clock">0:00</div><div class="label">Simulated time</div></div>
+      <div class="stat"><div class="value" id="s-guests">0</div><div class="label">Guests inside</div></div>
+      <div class="stat"><div class="value" id="s-queue">0</div><div class="label">Parties waiting at door</div></div>
+      <div class="stat"><div class="value" id="s-rail">0</div><div class="label">Tickets on the rail</div></div>
+      <div class="stat"><div class="value" id="s-cooking">0</div><div class="label">Orders cooking</div></div>
+      <div class="stat"><div class="value" id="s-pass">0</div><div class="label">Orders on the pass</div></div>
+      <div class="stat"><div class="value" id="s-served">0</div><div class="label">Parties served</div></div>
+      <div class="stat"><div class="value" id="s-lost">0</div><div class="label">Parties turned away</div></div>
+    </div>
+
+    <div class="legend">
+      <span><i class="ring free"></i>Free table</span>
+      <span><i class="ring" style="--c: var(--menu)"></i>Reading menu</span>
+      <span><i class="ring" style="--c: var(--ready)"></i>Wants to order (!)</span>
+      <span><i class="ring" style="--c: var(--waiting)"></i>Waiting for food</span>
+      <span><i class="ring" style="--c: var(--eating)"></i>Eating</span>
+      <span><i class="dot waiter">W</i>Waiter</span>
+      <span><i class="dot cook">C</i>Cook</span>
+      <span><i class="dot guest"></i>Guest (one colour per party)</span>
+    </div>
+  </main>
+
+  <script>
+    // ---------- helpers ----------
+    const NS = "http://www.w3.org/2000/svg";
+    const $ = id => document.getElementById(id);
+    const rand = (a, b) => a + Math.random() * (b - a);
+
+    function el(name, attrs, parent) {
+      const node = document.createElementNS(NS, name);
+      for (const key in attrs) node.setAttribute(key, attrs[key]);
+      if (parent) parent.appendChild(node);
+      return node;
+    }
+    function text(content, attrs, parent) {
+      const node = el("text", attrs, parent);
+      node.textContent = content;
+      return node;
+    }
+    function moveToward(o, tx, ty, step) {
+      const dx = tx - o.x, dy = ty - o.y, dist = Math.hypot(dx, dy);
+      if (dist <= step || dist === 0) { o.x = tx; o.y = ty; return true; }
+      o.x += dx / dist * step; o.y += dy / dist * step;
+      return false;
+    }
+    function pathLength(path) {
+      let len = 0;
+      for (let i = 1; i < path.length; i++) len += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+      return len;
+    }
+    function pointAt(path, d) {
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1], b = path[i], seg = Math.hypot(b.x - a.x, b.y - a.y);
+        if (seg > 0 && d <= seg) return { x: a.x + (b.x - a.x) * d / seg, y: a.y + (b.y - a.y) * d / seg };
+        d -= seg;
+      }
+      return path[path.length - 1];
+    }
+
+    // ---------- floor plan ----------
+    const AISLES = [270, 465];           // horizontal walkways between table rows
+    const CORRIDORS = [85, 735];         // vertical walkways at the left and right of the room
+    const DOOR = { x: 60, y: 270, aisle: 270 };
+    const OUTSIDE = { x: -20, y: 270 };
+    const RAIL_WAITER = { x: 762, y: 270 };   // where a waiter hangs the order ticket
+    const RAIL_COOK = { x: 818, y: 270 };     // where a cook takes it
+    const PASS_WAITER = { x: 762, y: 465 };   // dining-room side of the small table
+    const PASS_COOK = { x: 850, y: 465 };     // kitchen side of the small table
+    const PARTY_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
+
+    const SEATS = {
+      six:   [[-36, -42], [-36, 42], [0, -42], [0, 42], [36, -42], [36, 42]],
+      round: [[0, -45], [0, 45], [-45, 0], [45, 0]],
+      two:   [[-40, 0], [40, 0]],
+    };
+    const PLATE_INSET = { six: 23, round: 24, two: 24 };
+    const LAYOUT = [
+      ["six", "six", "round", "two"],
+      ["round", "six", "six", "round"],
+      ["six", "round", "six", "two"],
+    ];
+    const COLS = [190, 330, 470, 610], ROWS = [170, 370, 565];
+    const SERVICE = [{ dy: 72, aisle: 270 }, { dy: -72, aisle: 270 }, { dy: -72, aisle: 465 }];
+
+    // Walk along the aisles: out to the aisle, along a corridor if the aisle changes, then in.
+    function route(a, b) {
+      const pts = [];
+      if (a.aisle != null) pts.push({ x: a.x, y: a.aisle });
+      if (a.aisle == null || b.aisle == null || a.aisle !== b.aisle) {
+        let cx = CORRIDORS[1];
+        if (a.aisle != null && b.aisle != null) {
+          const cost = c => Math.abs(a.x - c) + Math.abs(b.x - c);
+          cx = cost(CORRIDORS[0]) < cost(CORRIDORS[1]) ? CORRIDORS[0] : CORRIDORS[1];
+        }
+        pts.push({ x: cx, y: a.aisle ?? a.y });
+        pts.push({ x: cx, y: b.aisle ?? b.y });
+      }
+      if (b.aisle != null) pts.push({ x: b.x, y: b.aisle });
+      pts.push({ x: b.x, y: b.y });
+      return pts;
+    }
+
+    // ---------- selection ----------
+    // One object can be selected at a time; its "about" card is shown in the side panel.
+    let selected = null;
+    const fixedObjects = [];   // tables and equipment: always present, so they are always in the list
+    function selectable(nodes, info) {
+      info.nodes = [].concat(nodes);
+      if (!["Guests", "Waiter", "Cook"].includes(info.kind)) fixedObjects.push(info);
+      info.nodes.forEach(node => {
+        node.setAttribute("data-selectable", "");
+        node.addEventListener("click", e => { e.stopPropagation(); select(info); });
+      });
+      return info;
+    }
+    function select(info) {
+      if (selected) selected.nodes.forEach(node => node.removeAttribute("data-selected"));
+      selected = info;
+      if (info) { info.nodes.forEach(node => node.setAttribute("data-selected", "")); setPanel(true); setPicker(false); }
+      renderCard();
+    }
+    function setPanel(open) {
+      $("panel").classList.toggle("open", open);
+      $("panel-toggle").setAttribute("aria-pressed", open);
+      $("panel-toggle").textContent = open ? "Hide details" : "Show details";
+    }
+    let liveRows = [];
+    function setPicker(open) {
+      $("picker").hidden = !open;
+      $("picker-toggle").setAttribute("aria-expanded", open);
+      if (open) { $("picker-filter").value = ""; updateActorList(); $("picker-filter").focus(); }
+    }
+    function renderCard() {
+      const about = $("about");
+      about.replaceChildren();
+      liveRows = [];
+      if (!selected) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = "Nothing selected. Click a table, a person, a ticket or a piece of equipment in the live view, or use the \u{1F50D} button at the top to pick one by name.";
+        about.appendChild(empty);
+      } else {
+        const card = document.createElement("div"); card.className = "about";
+        const kind = document.createElement("span"); kind.className = "kind"; kind.textContent = selected.kind;
+        const name = document.createElement("h3"); name.textContent = selected.name;
+        const list = document.createElement("dl");
+        const rows = [["What it is", selected.what], ["Purpose", selected.purpose], ["Why it is here", selected.why],
+                      ...(selected.extra || []), ["Right now", selected.now]];
+        for (const [label, value] of rows) {
+          const dt = document.createElement("dt"); dt.textContent = label;
+          const dd = document.createElement("dd");
+          if (typeof value === "function") liveRows.push([dd, value]); else dd.textContent = value;
+          list.append(dt, dd);
+        }
+        card.append(kind, name, list);
+        about.appendChild(card);
+        $("panel").querySelector(".panel-inner").scrollTop = 0;
+      }
+      updateNow();
+    }
+    function updateNow() {
+      for (const [dd, fn] of liveRows) {
+        const value = fn();
+        if (dd.textContent !== value) dd.textContent = value;
+      }
+    }
+
+    // The always-present list of moving actors: staff, guest parties and open orders.
+    const actorRows = new Map();
+    function updateActorList() {
+      if ($("picker").hidden) return;
+      const query = $("picker-filter").value.trim().toLowerCase();
+      const groups = [
+        ["Order tickets, open", "orders", () => tickets.map(t => t.info), "No open orders."],
+        ["Order tickets, delivered (last 10)", "delivered", () => delivered.map(t => t.info), "Nothing delivered yet."],
+        ["Waiters", "waiters", () => waiters.map(s => s.info)],
+        ["Cooks", "cooks", () => cooks.map(s => s.info)],
+        ["Guest parties", "guests", () => parties.map(p => p.info), "No guests at the moment."],
+        ["Tables", "tables", () => fixedObjects.filter(o => o.kind === "Table")],
+        ["Hand-off points", "handoff", () => fixedObjects.filter(o => o.kind === "Hand-off point" || o.kind === "Entrance")],
+        ["Kitchen equipment", "equipment", () => fixedObjects.filter(o => o.kind === "Kitchen equipment")],
+      ];
+      const list = $("actor-list");
+      for (const [title, key, getInfos, emptyText] of groups) {
+        let box = list.querySelector(`[data-group="${key}"]`);
+        if (!box) {
+          const group = document.createElement("details"); group.open = key !== "delivered";
+          group.appendChild(document.createElement("summary"));
+          box = document.createElement("div"); box.dataset.group = key;
+          group.appendChild(box); list.appendChild(group);
+        }
+        const infos = getInfos();
+        const heading = `${title} (${infos.length})`, summary = box.previousSibling;
+        if (summary.textContent !== heading) summary.textContent = heading;
+        box.parentNode.hidden = query !== "" && !infos.some(i => (i.listName || i.name).toLowerCase().includes(query));
+        for (const [info, row] of actorRows) {
+          if (row.parentNode === box && !infos.includes(info)) { row.remove(); actorRows.delete(info); }
+        }
+        let none = box.querySelector(".none");
+        if (!infos.length && !none && emptyText) {
+          none = document.createElement("p"); none.className = "none"; none.textContent = emptyText; box.appendChild(none);
+        } else if (infos.length && none) none.remove();
+        for (const info of infos) {
+          let row = actorRows.get(info);
+          if (!row) {
+            row = document.createElement("button"); row.className = "actor";
+            row.textContent = info.listName || info.name;
+            row.addEventListener("click", () => select(info));
+            actorRows.set(info, row);
+            box.appendChild(row);
+          }
+          row.setAttribute("aria-pressed", info === selected);
+          row.hidden = !row.textContent.toLowerCase().includes(query);
+        }
+      }
+    }
+    const clockText = t => Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
+    const NOT_SIMULATED = "Drawn for context. It is not part of the simulation yet.";
+
+    // ---------- static drawing ----------
+    const floor = $("floor"), furniture = $("furniture");
+    el("rect", { x: 60, y: 70, width: 730, height: 600, fill: "var(--floor-dining)" }, floor);
+    el("rect", { x: 790, y: 70, width: 390, height: 600, fill: "var(--floor-kitchen)" }, floor);
+    // outer walls, with a gap for the front door
+    el("path", { class: "wall", d: "M60 245 V70 H1180 V670 H60 V295" }, floor);
+    // wall between dining room and kitchen, with gaps for the order rail and the pass
+    el("path", { class: "wall", d: "M790 70 V230 M790 310 V425 M790 505 V670" }, floor);
+    text("DINING ROOM", { class: "zone-label", x: 76, y: 94 }, floor);
+    text("KITCHEN", { class: "zone-label", x: 806, y: 94 }, floor);
+    text("ENTRANCE", { class: "small-label", x: 30, y: 236, "text-anchor": "middle" }, floor);
+
+    // front door
+    const doorG = el("g", {}, furniture);
+    el("rect", { x: 48, y: 245, width: 24, height: 50, fill: "transparent" }, doorG);
+    el("rect", { x: 57, y: 247, width: 6, height: 46, rx: 3, fill: "#8a6a4a" }, doorG);
+    selectable(doorG, {
+      kind: "Entrance", name: "Front door",
+      what: "The way in and out of the dining room.",
+      purpose: "Guests arrive and leave here. When no free table fits a party, they wait outside by the door.",
+      why: "It is where demand shows up. A queue here means the room is full, and parties who give up are lost business.",
+      now: () => {
+        const waiting = parties.filter(p => p.state === "queue").length;
+        return `${waiting} ${waiting === 1 ? "party" : "parties"} waiting outside. ${turnedAway} turned away so far.`;
+      },
+    });
+
+    // order rail (in the wall opening) and the small pass table
+    const railG = el("g", {}, furniture);
+    el("rect", { x: 772, y: 228, width: 36, height: 84, fill: "transparent" }, railG);
+    el("rect", { class: "steel", x: 784, y: 230, width: 12, height: 80, rx: 3 }, railG);
+    text("ORDER RAIL", { class: "small-label", x: 806, y: 224 }, railG);
+    selectable(railG, {
+      kind: "Hand-off point", name: "Order rail",
+      what: "A rail in the wall between the dining room and the kitchen that holds paper order tickets.",
+      purpose: "A waiter hangs each ticket here after taking an order. A cook takes the oldest ticket when free.",
+      why: "It passes orders from the dining room to the kitchen without waiters and cooks having to meet. Tickets piling up here mean the kitchen is behind.",
+      now: () => rail.length ? `${rail.length} ${rail.length === 1 ? "ticket" : "tickets"} waiting, for ${rail.map(t => "table " + t.table.id).join(", ")}.` : "No tickets waiting.",
+    });
+    const passG = el("g", {}, furniture);
+    el("rect", { x: 772, y: 425, width: 66, height: 80, rx: 5, fill: "var(--wood)", stroke: "#8a6a4a", "stroke-width": 2 }, passG);
+    text("PASS", { class: "small-label", x: 805, y: 520, "text-anchor": "middle" }, passG);
+    selectable(passG, {
+      kind: "Hand-off point", name: "Pass table",
+      what: "A small table in the opening between the kitchen and the dining room.",
+      purpose: "Cooks put finished plates here. A waiter collects them and takes them to the guests.",
+      why: "It passes food from the kitchen back to the dining room. Plates sitting here are getting cold, so a full pass means the waiters are behind.",
+      now: () => pass.length ? `${pass.length} ${pass.length === 1 ? "order" : "orders"} ready, for ${pass.map(o => "table " + o.table.id).join(", ")}.` : "Empty.",
+    });
+
+    // kitchen equipment
+    function equipment(label, x, y, width, info) {
+      const g = el("g", {}, furniture);
+      el("rect", { class: "steel", x, y, width, height: 36, rx: 3 }, g);
+      text(label, { class: "small-label", x: x + width / 2, y: y + 22, "text-anchor": "middle" }, g);
+      selectable(g, { kind: "Kitchen equipment", now: () => NOT_SIMULATED, ...info });
+    }
+    equipment("PREP COUNTER", 900, 78, 200, {
+      name: "Prep counter",
+      what: "A work surface along the kitchen wall.",
+      purpose: "Where ingredients are washed, cut and portioned before cooking.",
+      why: "Preparing ahead is what lets the cooks turn an order around quickly during service.",
+    });
+    equipment("SINK", 850, 626, 110, {
+      name: "Sink",
+      what: "The kitchen sink.",
+      purpose: "Washing hands, produce, pans and dishes.",
+      why: "Clean plates and pans have to keep coming back, or the kitchen stops.",
+    });
+    equipment("FRIDGE", 980, 626, 120, {
+      name: "Fridge",
+      what: "Cold storage for ingredients.",
+      purpose: "Keeps food fresh and safe until it is needed.",
+      why: "What is stocked here limits what the kitchen can cook today.",
+    });
+    el("rect", { class: "steel", x: 1110, y: 140, width: 62, height: 320, rx: 4 }, furniture);
+    text("STOVES", { class: "small-label", x: 1141, y: 132, "text-anchor": "middle" }, furniture);
+
+    // A station is somewhere a cook stands and works: it glows while in use and shows progress.
+    function makeStation(standX, standY, glow, barX, barY) {
+      const station = { x: standX, y: standY, on: false, busy: false, progress: 0 };
+      station.flame = el(glow.tag, { class: "flame", ...glow.attrs }, furniture);
+      el("rect", { class: "progress-track", x: barX, y: barY, width: 50, height: 5, rx: 2.5 }, furniture);
+      station.bar = el("rect", { class: "progress-bar", x: barX, y: barY, width: 0, height: 5, rx: 2.5 }, furniture);
+      return station;
+    }
+
+    const stationNow = station => () => station.on ? `In use for table ${station.table.id}'s order.`
+      : station.busy ? "A cook is on the way to use it." : "Idle.";
+
+    const stoves = [200, 400].map((y, i) => {
+      const burner = el("circle", { class: "burner", cx: 1141, cy: y, r: 20 }, furniture);
+      const stove = makeStation(1085, y, { tag: "circle", attrs: { cx: 1141, cy: y, r: 14 } }, 1116, y + 28);
+      stove.name = `stove ${i + 1}`; stove.verb = "Cooking";
+      selectable(burner, {
+        kind: "Kitchen equipment", name: `Stove ${i + 1}`,
+        what: `A cooking burner on the range. It is cook ${i + 1}'s own station.`,
+        purpose: "Where most orders are cooked. It glows and the bar under it fills while an order is on.",
+        why: "The stoves are the kitchen's main capacity: one order per stove at a time, so two stoves means at most two orders cooking here at once.",
+        now: stationNow(stove),
+      });
+      return stove;
+    });
+
+    // pizza oven: a brick dome with a glowing mouth
+    const ovenG = el("g", {}, furniture);
+    el("rect", { x: 1096, y: 560, width: 76, height: 100, rx: 6, fill: "#7a4a3a", stroke: "#a86a55", "stroke-width": 1.5 }, ovenG);
+    el("path", { d: "M1108 632 V606 A26 26 0 0 1 1160 606 V632 Z", fill: "#23272b", stroke: "#a86a55", "stroke-width": 1.5 }, ovenG);
+    text("PIZZA OVEN", { class: "small-label", x: 1134, y: 552, "text-anchor": "middle" }, ovenG);
+    const pizzaOven = makeStation(1072, 610,
+      { tag: "path", attrs: { d: "M1114 630 V608 A20 20 0 0 1 1154 608 V630 Z" } }, 1109, 644);
+
+    // coffee machine: a small unit by the pass, with a cup under the spout
+    const coffeeG = el("g", {}, furniture);
+    el("rect", { class: "steel", x: 800, y: 548, width: 44, height: 56, rx: 4 }, coffeeG);
+    el("rect", { x: 807, y: 555, width: 30, height: 14, rx: 2, fill: "#23272b" }, coffeeG);
+    el("circle", { cx: 822, cy: 584, r: 8, fill: "#f2f2f2", stroke: "#0d0d0d", "stroke-width": 1 }, coffeeG);
+    text("COFFEE", { class: "small-label", x: 822, y: 540, "text-anchor": "middle" }, coffeeG);
+    const coffeeMachine = makeStation(866, 576,
+      { tag: "circle", attrs: { cx: 822, cy: 584, r: 5.5, style: "fill: #6b3d1e" } }, 797, 609);
+    pizzaOven.name = "the pizza oven"; pizzaOven.verb = "Baking pizza";
+    coffeeMachine.name = "the coffee machine"; coffeeMachine.verb = "Making coffee";
+    selectable(ovenG, {
+      kind: "Kitchen equipment", name: "Pizza oven",
+      what: "A brick oven in the corner of the kitchen.",
+      purpose: "Bakes the pizza orders. Its mouth glows and the bar fills while a pizza is in.",
+      why: "Pizza needs its own high heat, and it keeps those orders off the stoves. There is only one, so pizza orders cannot overlap.",
+      now: stationNow(pizzaOven),
+    });
+    selectable(coffeeG, {
+      kind: "Kitchen equipment", name: "Coffee machine",
+      what: "A coffee machine beside the pass table.",
+      purpose: "Makes the coffee that goes out with an order. The cup fills while it brews.",
+      why: "Drinks are a quick extra sale. It sits by the pass so coffee is the last stop before the order goes out.",
+      now: stationNow(coffeeMachine),
+    });
+    const stations = [...stoves, pizzaOven, coffeeMachine];
+
+    // tables
+    const tables = [];
+    LAYOUT.forEach((row, r) => row.forEach((type, c) => {
+      const x = COLS[c], y = ROWS[r], id = tables.length + 1;
+      const g = el("g", { class: "table free" }, furniture);
+      const table = {
+        id, type, x, y, g, status: "free", party: null, timer: 0, since: 0, claimed: false,
+        capacity: SEATS[type].length,
+        seats: SEATS[type].map(([dx, dy]) => ({ x: x + dx, y: y + dy })),
+        sp: { x, y: y + SERVICE[r].dy, aisle: SERVICE[r].aisle },
+      };
+      table.seats.forEach(s => el("circle", { class: "seat", cx: s.x, cy: s.y, r: 9 }, g));
+      if (type === "six") el("rect", { class: "table-top", x: x - 55, y: y - 28, width: 110, height: 56, rx: 6 }, g);
+      if (type === "round") el("circle", { class: "table-top", cx: x, cy: y, r: 32 }, g);
+      if (type === "two") el("rect", { class: "table-top", x: x - 27, y: y - 27, width: 54, height: 54, rx: 6 }, g);
+      table.plates = table.seats.map(s => {
+        const dist = Math.hypot(s.x - x, s.y - y), k = (dist - PLATE_INSET[type]) / dist;
+        return el("circle", { class: "plate", cx: x + (s.x - x) * k, cy: y + (s.y - y) * k, r: 5 }, g);
+      });
+      text(id, { class: "table-num", x, y }, g);
+      const bubble = el("g", { class: "bubble" }, g);
+      const bx = type === "six" ? x + 55 : x + 30, by = y - 30;
+      el("circle", { cx: bx, cy: by, r: 9, fill: "var(--ready)", stroke: "#0d0d0d", "stroke-width": 1.5 }, bubble);
+      text("!", { x: bx, y: by, fill: "#0d0d0d", "font-size": 12, "font-weight": 700, "text-anchor": "middle", "dominant-baseline": "central" }, bubble);
+      table.title = el("title", {}, g);
+      const shape = { six: "rectangular", round: "round", two: "small square" }[type];
+      selectable(g, {
+        kind: "Table", name: `Table ${id}`,
+        what: `A ${shape} table that seats ${table.capacity}.`,
+        purpose: "Where a party of guests sits, orders and eats. Its colour shows what stage the party is at.",
+        why: "Tables are what the restaurant has to sell. Each time one is filled and freed again it earns money, and its size decides which parties it can take.",
+        extra: [["Order at this table", () => !table.party ? "Nobody is sitting here." : table.party.ticket ? table.party.ticket.lines : "Not ordered yet."]],
+        now: () => table.party ? `Party of ${table.party.size}: ${STATUS_TEXT[table.status]}.` : "Free.",
+      });
+      tables.push(table);
+    }));
+
+    const STATUS_TEXT = {
+      free: "free", reserved: "guests arriving", reading: "reading the menu", ready: "wants to order",
+      ordering: "ordering", waiting: "waiting for food", eating: "eating",
+    };
+    function setStatus(table, status) {
+      table.status = status;
+      table.since = clock;
+      table.g.setAttribute("class", "table " + status);
+      table.title.textContent = `Table ${table.id} (seats ${table.capacity}): ${STATUS_TEXT[status]}`;
+      table.plates.forEach((p, i) => p.classList.toggle("on", status === "eating" && table.party && i < table.party.size));
+    }
+
+    // ---------- staff ----------
+    function makeStaff(kind, label, number, home, speed) {
+      const g = el("g", {}, $("staff"));
+      const dark = kind === "waiter";
+      if (!dark) el("rect", { x: -6, y: -17, width: 12, height: 9, rx: 3, fill: "#fff", stroke: "#0d0d0d", "stroke-width": 1 }, g);
+      el("circle", { r: 10, fill: dark ? "#0d0d0d" : "#fff", stroke: dark ? "#fff" : "#0d0d0d", "stroke-width": dark ? 2 : 1 }, g);
+      text(label, { class: "staff-label", fill: dark ? "#fff" : "#0d0d0d" }, g);
+      const ticket = el("g", { visibility: "hidden" }, g);
+      el("rect", { class: "ticket", x: 8, y: -16, width: 12, height: 14, rx: 1.5 }, ticket);
+      const tray = el("g", { visibility: "hidden" }, g);
+      el("circle", { cx: 15, cy: -9, r: 9, fill: "#8d949b", stroke: "#0d0d0d", "stroke-width": 1 }, tray);
+      el("circle", { cx: 12, cy: -10, r: 3.5, fill: "#f2f2f2" }, tray);
+      el("circle", { cx: 18, cy: -8, r: 3.5, fill: "#f2f2f2" }, tray);
+      el("circle", { r: 17, fill: "transparent" }, g);   // bigger click target for a moving person
+      const s = { kind, g, ticket, tray, home, speed, x: home.x, y: home.y, at: home, path: [], state: "idle", timer: 0, job: null, carry: null };
+      s.name = `${ABOUT_STAFF[kind].kind} ${number}`;
+      s.info = selectable(g, { ...ABOUT_STAFF[kind], name: s.name, now: () => staffNow(s) });
+      return s;
+    }
+    const ABOUT_STAFF = {
+      waiter: {
+        kind: "Waiter",
+        what: "A member of the front-of-house staff.",
+        purpose: "Takes orders at the tables, hangs the ticket on the order rail, then carries finished plates from the pass to the guests.",
+        why: "The only link between guests and kitchen. Everything guests ask for and receive goes through a waiter, so too few waiters means orange and red tables.",
+      },
+      cook: {
+        kind: "Cook",
+        what: "A member of the kitchen staff.",
+        purpose: "Takes a ticket from the rail, cooks the order at a stove or the pizza oven, makes coffee if the order has one, and puts the plates on the pass.",
+        why: "Turns orders into food. How fast the cooks work sets how long guests wait for their meal.",
+      },
+    };
+    function staffNow(s) {
+      const t = s.job ? `table ${s.job.table.id}` : "";
+      switch (s.state) {
+        case "idle": return s.path.length ? "Walking back to the waiting spot." : "Waiting for something to do.";
+        case "toTable": return `Walking to ${t} to take the order.`;
+        case "taking": return `Taking the order at ${t}.`;
+        case "hanging": return `Hanging the ticket for ${t} on the order rail.`;
+        case "picking": return `Collecting the food for ${t} from the pass.`;
+        case "toServe": return `Carrying food to ${t}.`;
+        case "serving": return `Serving ${t}.`;
+        case "grabbing": return `Taking the ticket for ${t} off the rail.`;
+        case "waitStation": return `Waiting for ${s.steps[0].station.name} to be free (order for ${t}).`;
+        case "toStation": return `Taking the order for ${t} to ${s.station.name}.`;
+        case "working": return `${s.station.verb} for ${t} at ${s.station.name}.`;
+        case "plating": return `Putting the plates for ${t} on the pass.`;
+        case "toRail": return s.kind === "waiter" ? `Carrying the ticket for ${t} to the order rail.` : `Going to the rail for the ticket for ${t}.`;
+        case "toPass": return s.kind === "waiter" ? `Going to the pass for the food for ${t}.` : `Carrying the plates for ${t} to the pass.`;
+      }
+      return "";
+    }
+    function go(s, target) {
+      s.path = s.kind === "cook" ? [target] : route(s.at, target);
+      s.at = target;
+    }
+    function advance(s, dt) {
+      let step = s.speed * dt;
+      while (s.path.length && step > 0) {
+        const p = s.path[0], dist = Math.hypot(p.x - s.x, p.y - s.y);
+        if (moveToward(s, p.x, p.y, step)) s.path.shift();
+        step -= dist;
+      }
+      return s.path.length === 0;
+    }
+
+    const waiters = [
+      makeStaff("waiter", "W", 1, { x: 760, y: 350 }, 130),
+      makeStaff("waiter", "W", 2, { x: 760, y: 392 }, 130),
+    ];
+    const cooks = [
+      makeStaff("cook", "C", 1, { x: 960, y: 300 }, 110),
+      makeStaff("cook", "C", 2, { x: 960, y: 420 }, 110),
+    ];
+    cooks.forEach((c, i) => c.stove = stoves[i]);
+
+    // What guests can order. Each dish belongs to the station that makes it.
+    const MENU = {
+      stove: ["Grilled salmon", "Steak frites", "Mushroom risotto", "Chicken parmesan", "Pasta carbonara", "Caesar salad"],
+      oven: ["Margherita pizza", "Pepperoni pizza", "Four cheese pizza"],
+    };
+    const PIZZA_CHANCE = 0.3, COFFEE_CHANCE = 0.4;
+    const tickets = [];   // every order that has been taken and not yet delivered
+    const delivered = []; // the most recent delivered orders, newest first
+    let ticketCount = 0;
+
+    function makeTicket(table, waiter) {
+      const counts = new Map(), add = item => counts.set(item, (counts.get(item) || 0) + 1);
+      const ticket = { table, waiter, claimed: false, stage: "carried", created: clock, since: clock, stove: 0, oven: 0, coffee: 0 };
+      for (let i = 0; i < table.party.size; i++) {
+        const kind = Math.random() < PIZZA_CHANCE ? "oven" : "stove";
+        add(MENU[kind][Math.floor(Math.random() * MENU[kind].length)]);
+        ticket[kind]++;
+        if (Math.random() < COFFEE_CHANCE) ticket.coffee++;
+      }
+      if (ticket.coffee) counts.set("Coffee", ticket.coffee);
+      const lines = [...counts].map(([item, n]) => `${n} × ${item}`).join("\n");
+      const guests = table.party.size;
+      ticket.lines = lines;
+      table.party.ticket = ticket;
+      ticket.info = {
+        nodes: [], kind: "Order ticket", name: `Ticket ${++ticketCount} for table ${table.id}`, listName: `Ticket ${ticketCount}`,
+        what: `A paper slip with the order from table ${table.id} (${guests} ${guests === 1 ? "guest" : "guests"}), written by ${waiter.name} at ${clockText(clock)}.`,
+        purpose: "Tells the kitchen exactly what to cook and which table it is for.",
+        why: "It is how an order travels from the guests to the cooks. Following one ticket shows where a table's waiting time goes.",
+        extra: [
+          ["On the ticket", lines],
+          ["Time since the order was taken", () => clockText((ticket.delivered ?? clock) - ticket.created)],
+        ],
+        now: () => {
+          const held = clockText(clock - ticket.since);
+          switch (ticket.stage) {
+            case "carried": return `${ticket.waiter.name} is carrying it to the order rail.`;
+            case "rail": return `Hanging on the order rail for ${held}, waiting for a cook.`;
+            case "cooking": return `${ticket.cook.name} has it and is preparing the order (${held} so far).`;
+            case "pass": return `The food is on the pass, waiting ${held} for a waiter.`;
+            case "delivering": return `${ticket.waiter.name} is carrying the food to table ${table.id}.`;
+          }
+          return `Delivered. Table ${table.id} got its food ${clockText(ticket.delivered - ticket.created)} after ordering.`;
+        },
+      };
+      tickets.push(ticket);
+      return ticket;
+    }
+    function moveTicket(ticket, stage) { ticket.stage = stage; ticket.since = clock; boardsDirty = true; }
+
+    const rail = [];   // order tickets waiting for a cook
+    const pass = [];   // finished orders waiting for a waiter
+    let boardsDirty = true;
+
+    function nextWaiterJob() {
+      const order = pass.find(o => !o.claimed);
+      if (order) { order.claimed = true; return { type: "deliver", order, table: order.table }; }
+      const table = tables.filter(t => t.status === "ready" && !t.claimed).sort((a, b) => a.since - b.since)[0];
+      if (table) { table.claimed = true; return { type: "order", table }; }
+      return null;
+    }
+
+    function updateWaiter(w, dt) {
+      if (!advance(w, dt)) return;
+      if (w.timer > 0) { w.timer -= dt; if (w.timer > 0) return; }
+      switch (w.state) {
+        case "idle":
+          w.job = nextWaiterJob();
+          if (!w.job) { if (w.at !== w.home) go(w, w.home); return; }
+          if (w.job.type === "order") { go(w, w.job.table.sp); w.state = "toTable"; }
+          else { go(w, PASS_WAITER); w.state = "toPass"; }
+          return;
+        case "toTable":
+          setStatus(w.job.table, "ordering"); w.timer = 2.5; w.state = "taking"; return;
+        case "taking":
+          w.job.ticket = makeTicket(w.job.table, w);
+          w.carry = "ticket"; go(w, RAIL_WAITER); w.state = "toRail"; return;
+        case "toRail":
+          w.timer = 0.5; w.state = "hanging"; return;
+        case "hanging":
+          rail.push(w.job.ticket); moveTicket(w.job.ticket, "rail");
+          w.job.table.claimed = false;
+          setStatus(w.job.table, "waiting");
+          w.carry = null; w.state = "idle"; return;
+        case "toPass":
+          w.timer = 0.6; w.state = "picking"; return;
+        case "picking":
+          pass.splice(pass.indexOf(w.job.order), 1);
+          w.job.order.waiter = w; moveTicket(w.job.order, "delivering");
+          w.carry = "plates"; go(w, w.job.table.sp); w.state = "toServe"; return;
+        case "toServe":
+          w.timer = 1.5; w.state = "serving"; return;
+        case "serving":
+          setStatus(w.job.table, "eating");
+          w.job.table.timer = rand(14, 22);
+          w.job.order.delivered = clock; moveTicket(w.job.order, "done");
+          tickets.splice(tickets.indexOf(w.job.order), 1);
+          delivered.unshift(w.job.order);
+          if (delivered.length > 10) delivered.pop();
+          w.carry = null; w.state = "idle"; return;
+      }
+    }
+
+    function releaseStation(station) { station.on = false; station.busy = false; station.progress = 0; }
+
+    // The stations an order needs, in the order the cook visits them. Times are invented.
+    function stepsFor(cook, ticket) {
+      const steps = [];
+      if (ticket.stove) steps.push({ station: cook.stove, time: 4 + ticket.stove * 1.3 });
+      if (ticket.oven) steps.push({ station: pizzaOven, time: 4 + ticket.oven * 1.0 });
+      if (ticket.coffee) steps.push({ station: coffeeMachine, time: 1 + ticket.coffee * 0.5 });
+      return steps;
+    }
+    function nextStep(c) {
+      const step = c.steps[0];
+      if (!step) { c.station = null; c.carry = "plates"; go(c, PASS_COOK); c.state = "toPass"; return; }
+      if (step.station.busy) { c.state = "waitStation"; return; }   // shared oven or coffee machine is taken
+      c.steps.shift();
+      c.station = step.station; c.stepTime = step.time;
+      c.station.busy = true; c.station.table = c.job.table;
+      go(c, c.station); c.state = "toStation";
+    }
+
+    function updateCook(c, dt) {
+      if (!advance(c, dt)) return;
+      if (c.state === "working") c.station.progress = 1 - Math.max(0, c.timer - dt) / c.cookTime;
+      if (c.timer > 0) { c.timer -= dt; if (c.timer > 0) return; }
+      switch (c.state) {
+        case "idle": {
+          const ticket = rail.find(t => !t.claimed);
+          if (!ticket) { if (c.at !== c.home) go(c, c.home); return; }
+          ticket.claimed = true; c.job = ticket;
+          go(c, RAIL_COOK); c.state = "toRail"; return;
+        }
+        case "toRail":
+          c.timer = 0.5; c.state = "grabbing"; return;
+        case "grabbing":
+          rail.splice(rail.indexOf(c.job), 1);
+          c.job.cook = c; moveTicket(c.job, "cooking");
+          c.steps = stepsFor(c, c.job);
+          c.carry = "ticket"; return nextStep(c);
+        case "waitStation":
+          return nextStep(c);
+        case "toStation":
+          c.station.on = true;
+          c.cookTime = c.timer = c.stepTime;
+          c.state = "working"; return;
+        case "working":
+          releaseStation(c.station);
+          c.carry = "plates"; return nextStep(c);
+        case "toPass":
+          c.timer = 0.4; c.state = "plating"; return;
+        case "plating":
+          c.job.claimed = false;
+          pass.push(c.job); moveTicket(c.job, "pass");
+          c.carry = null; c.state = "idle"; return;
+      }
+    }
+
+    // ---------- guests ----------
+    const GUEST_SPEED = 85, FOLLOW_GAP = 17, MAX_QUEUE = 3;
+    const SIZE_WEIGHTS = [[1, 1], [2, 4], [3, 2], [4, 4], [5, 1.5], [6, 2]];
+    const parties = [];
+    let partyCount = 0, nextArrival = 0.5, served = 0, turnedAway = 0, clock = 0;
+
+    function pickSize() {
+      let r = Math.random() * SIZE_WEIGHTS.reduce((sum, w) => sum + w[1], 0);
+      for (const [size, weight] of SIZE_WEIGHTS) { if ((r -= weight) <= 0) return size; }
+      return 2;
+    }
+    function findTable(size) {
+      const fits = tables.filter(t => t.status === "free" && t.capacity >= size);
+      if (!fits.length) return null;
+      const smallest = Math.min(...fits.map(t => t.capacity));
+      const best = fits.filter(t => t.capacity === smallest);
+      return best[Math.floor(Math.random() * best.length)];
+    }
+    function seatParty(party, table) {
+      party.table = table; table.party = party;
+      setStatus(table, "reserved");
+      const lead = party.members[0];
+      party.path = [{ x: lead.x, y: lead.y }, DOOR, ...route(DOOR, table.sp)];
+      party.length = pathLength(party.path);
+      party.d = 0; party.state = "arriving";
+    }
+    function spawnParty() {
+      const size = pickSize(), table = findTable(size);
+      const queued = parties.filter(p => p.state === "queue").length;
+      if (!table && queued >= MAX_QUEUE) { turnedAway++; return; }
+      const color = PARTY_COLORS[partyCount++ % PARTY_COLORS.length];
+      const party = { size, state: "queue", members: [] };
+      for (let i = 0; i < size; i++) {
+        const m = { x: OUTSIDE.x - i * 6, y: OUTSIDE.y };
+        m.el = el("circle", { class: "guest", r: 8, fill: color }, $("guests"));
+        party.members.push(m);
+      }
+      party.info = selectable(party.members.map(m => m.el), {
+        kind: "Guests", name: `Party ${partyCount}: ${size === 1 ? "1 guest" : size + " guests"}`, listName: `Party ${partyCount}`,
+        what: size === 1 ? "One customer." : `${size} customers who came together and share a table.`,
+        purpose: "They come to eat: sit down, read the menu, order, wait, eat and leave.",
+        why: "Guests are the reason the restaurant exists. Everything else here is about serving them well and quickly enough that they come back.",
+        extra: [["What they ordered", () => party.ticket ? party.ticket.lines : "Nothing yet."]],
+        now: () => {
+          if (party.state === "queue") return "Waiting outside for a table that fits.";
+          if (party.state === "arriving") return `Walking to table ${party.table.id}.`;
+          if (party.state === "leaving") return "Leaving after the meal.";
+          return `At table ${party.table.id}: ${STATUS_TEXT[party.table.status]}.`;
+        },
+      });
+      parties.push(party);
+      if (table) seatParty(party, table);
+    }
+
+    function updateParty(party, dt) {
+      const walk = GUEST_SPEED * dt;
+      if (party.state === "queue") {
+        const slot = parties.filter(p => p.state === "queue").indexOf(party);
+        const table = findTable(party.size);
+        if (table) return seatParty(party, table);
+        party.members.forEach((m, i) => moveToward(m, 18 + (i % 2) * 20, 330 + slot * 80 + Math.floor(i / 2) * 19, walk * 1.5));
+      } else if (party.state === "arriving" || party.state === "leaving") {
+        party.d += walk;
+        party.members.forEach((m, i) => {
+          const p = pointAt(party.path, Math.max(0, party.d - i * FOLLOW_GAP));
+          moveToward(m, p.x, p.y, walk * 1.6);
+        });
+        if (party.d < party.length + (party.size - 1) * FOLLOW_GAP + 10) return;
+        if (party.state === "arriving") {
+          party.state = "seated";
+          setStatus(party.table, "reading");
+          party.table.timer = rand(5, 9);
+        } else {
+          if (selected === party.info) select(null);
+          party.members.forEach(m => m.el.remove());
+          parties.splice(parties.indexOf(party), 1);
+        }
+      } else if (party.state === "seated") {
+        party.members.forEach((m, i) => moveToward(m, party.table.seats[i].x, party.table.seats[i].y, walk * 1.5));
+      }
+    }
+
+    function updateTable(table, dt) {
+      if (table.status !== "reading" && table.status !== "eating") return;
+      table.timer -= dt;
+      if (table.timer > 0) return;
+      if (table.status === "reading") return setStatus(table, "ready");
+      // finished eating: the party walks out and the table is free again
+      const party = table.party;
+      party.path = [table.sp, ...route(table.sp, DOOR), OUTSIDE];
+      party.length = pathLength(party.path);
+      party.d = 0; party.state = "leaving";
+      table.party = null;
+      setStatus(table, "free");
+      served++;
+    }
+
+    // ---------- drawing the moving parts ----------
+    function drawBoards() {
+      boardsDirty = false;
+      const railG = $("rail"), passG = $("pass");
+      railG.replaceChildren(); passG.replaceChildren();
+      tickets.forEach(t => t.info.nodes = []);
+      if (selected && selected.kind === "Order ticket") selected.nodes = [];
+      const clickable = (ticket, parent) => {
+        const g = el("g", { "data-selectable": "" }, parent);
+        g.addEventListener("click", e => { e.stopPropagation(); select(ticket.info); });
+        if (ticket.info === selected) g.setAttribute("data-selected", "");
+        ticket.info.nodes = [g];
+        return g;
+      };
+      rail.slice(0, 5).forEach((t, i) => {
+        const y = 233 + i * 15, g = clickable(t, railG);
+        el("rect", { class: "ticket", x: 774, y, width: 32, height: 13, rx: 1.5 }, g);
+        text(t.table.id, { class: "ticket-text", x: 790, y: y + 6.5 }, g);
+      });
+      if (rail.length > 5) text("+" + (rail.length - 5), { class: "small-label", x: 810, y: 318 }, railG);
+      pass.slice(0, 6).forEach((o, i) => {
+        const x = 790 + (i % 2) * 30, y = 442 + Math.floor(i / 2) * 23, g = clickable(o, passG);
+        el("circle", { cx: x, cy: y, r: 10, fill: "#f2f2f2", stroke: "#b9b9b9", "stroke-width": 1.5 }, g);
+        text(o.table.id, { class: "ticket-text", x, y }, g);
+      });
+    }
+
+    function draw() {
+      for (const party of parties) for (const m of party.members) {
+        m.el.setAttribute("cx", m.x); m.el.setAttribute("cy", m.y);
+      }
+      for (const s of [...waiters, ...cooks]) {
+        s.g.setAttribute("transform", `translate(${s.x} ${s.y})`);
+        s.ticket.setAttribute("visibility", s.carry === "ticket" ? "visible" : "hidden");
+        s.tray.setAttribute("visibility", s.carry === "plates" ? "visible" : "hidden");
+      }
+      for (const station of stations) {
+        station.flame.style.opacity = station.on ? 0.65 + 0.35 * Math.sin(clock * 10) : 0;
+        station.bar.setAttribute("width", 50 * station.progress);
+      }
+      if (boardsDirty) drawBoards();
+      updateNow();
+      const inside = parties.filter(p => p.state !== "queue").reduce((sum, p) => sum + p.size, 0);
+      $("s-clock").textContent = clockText(clock);
+      $("s-guests").textContent = inside;
+      $("s-queue").textContent = parties.filter(p => p.state === "queue").length;
+      $("s-rail").textContent = rail.length;
+      $("s-cooking").textContent = cooks.filter(c => ["toStation", "working", "waitStation"].includes(c.state)).length;
+      $("s-pass").textContent = pass.length;
+      $("s-served").textContent = served;
+      $("s-lost").textContent = turnedAway;
+    }
+
+    // ---------- main loop ----------
+    let speed = 1, paused = false, last = performance.now(), lastListUpdate = 0;
+
+    function tick(dt) {
+      clock += dt;
+      nextArrival -= dt;
+      if (nextArrival <= 0) { spawnParty(); nextArrival = rand(5, 10); }
+      [...parties].forEach(p => updateParty(p, dt));
+      tables.forEach(t => updateTable(t, dt));
+      waiters.forEach(w => updateWaiter(w, dt));
+      cooks.forEach(c => updateCook(c, dt));
+    }
+    function frame(now) {
+      const dt = Math.min((now - last) / 1000, 0.1);
+      last = now;
+      if (!paused) for (let i = 0; i < speed; i++) tick(dt);
+      draw();
+      if (now - lastListUpdate > 400) { lastListUpdate = now; updateActorList(); }
+      requestAnimationFrame(frame);
+    }
+
+    $("pause").addEventListener("click", e => {
+      paused = !paused;
+      e.target.textContent = paused ? "Resume" : "Pause";
+      e.target.setAttribute("aria-pressed", paused);
+    });
+    document.querySelectorAll(".speed").forEach(button => button.addEventListener("click", () => {
+      speed = Number(button.dataset.speed);
+      document.querySelectorAll(".speed").forEach(b => b.setAttribute("aria-pressed", b === button));
+    }));
+
+    $("panel-toggle").addEventListener("click", () => setPanel(!$("panel").classList.contains("open")));
+    $("panel-close").addEventListener("click", () => setPanel(false));
+    $("view").addEventListener("click", () => select(null));
+    $("picker-toggle").addEventListener("click", e => { e.stopPropagation(); setPicker($("picker").hidden); });
+    $("picker-filter").addEventListener("input", updateActorList);
+    $("picker").addEventListener("click", e => e.stopPropagation());
+    document.addEventListener("click", () => setPicker(false));
+    document.addEventListener("keydown", e => { if (e.key === "Escape") setPicker(false); });
+
+    tables.forEach(t => setStatus(t, "free"));
+    renderCard();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

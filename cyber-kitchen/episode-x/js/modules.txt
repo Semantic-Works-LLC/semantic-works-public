@@ -1,0 +1,25 @@
+# The JavaScript modules of the page, in the order build.py inlines them into site/index.html.
+# Order matters: they share one script, and a module may use what the ones above it define.
+helpers.js
+prefs.js
+floor-plan.js
+rng.js
+des-engine.js
+gauges.js
+selection.js
+panel-size.js
+tokens.js
+route.js
+metrics.js
+charts.js
+metrics-card.js
+des-info.js
+des-view.js
+des-graph.js
+scorecard.js
+actions.js
+picker.js
+legend.js
+views.js
+toolbar.js
+main.js

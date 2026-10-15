@@ -1,0 +1,4 @@
+# Test tooling only. The page and the server themselves need nothing installed.
+pytest
+coverage
+playwright

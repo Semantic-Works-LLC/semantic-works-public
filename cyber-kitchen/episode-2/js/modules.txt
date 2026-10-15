@@ -1,0 +1,25 @@
+# The JavaScript modules of the page, in the order build.py inlines them into site/index.html.
+# Order matters: they share one script, and a module may use what the ones above it define.
+helpers.js
+floor-layout.js
+selection.js
+picker.js
+floor-drawing.js
+stations.js
+tables.js
+staff.js
+orders.js
+waiter-work.js
+cook-work.js
+guests.js
+steps.js
+tracking.js
+service-tokens.js
+service-layout.js
+service-motion.js
+metrics.js
+charts.js
+metrics-card.js
+views.js
+drawing.js
+main.js
