@@ -10,6 +10,8 @@ Pasha paints in acrylic, and one of his paintings exists as a gigapixel image: a
 
 ## What it shows
 
+![Dictate mode in ChatGPT: Pasha's long dictated message about a gigapixel fly-through app, and the start of ChatGPT's long answer recommending a browser app with WebGL 2 and an image pyramid, with Pasha in a bubble in the corner](screenshot.jpg)
+
 - **Dictate.** Pasha talks for about a minute, in no particular order: a gigapixel image, a smooth fly-through, browser or native Swift, SVG or WebGL, no third-party code, and it must be fast. ChatGPT answers thoroughly (tiling, smoothness, canvas versus Swift, and a choice of WebGL 2.0), but at length: a lot said in, a lot to read out.
 - **Voice.** The same question as a spoken back-and-forth. Because it answers aloud, ChatGPT has to pick what matters most for the very next reply, so the conversation stays at the top level and moves fast:
   - tiling first, as a pyramid of zoom levels;
@@ -33,6 +35,7 @@ The video and this summary are the whole episode: there is no app and no code, s
 
 | Path | What it is |
 |---|---|
+| `screenshot.jpg` | The picture in this README: dictate mode, a long message in and a long answer out |
 | `TRANSCRIPT.md` | The recording, as understood: Pasha's words and ChatGPT's spoken replies |
 | `journey/index.html` | The slide-by-slide summary: one file with its pictures inside it |
 | `journey/images/` | The pictures in the summary, kept as files |
