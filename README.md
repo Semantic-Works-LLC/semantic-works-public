@@ -10,11 +10,13 @@ Developed & maintained by Semantic Works LLC.
 
 ### HeadCam Studio
 
-A series building tools for narrating and recording on a Mac, starting with your own head on screen.
+A series on tools and habits for narrating, recording and working on a Mac, starting with your own head on screen.
 
 * **[Episode 1 (The Bubble Head)](./headcam-studio/episode-1/)** — A native macOS app that shows your webcam as a bubble floating above every app, so it appears in screen recordings and presentations. It can blur the room behind you or put a picture there, and shows a live transcript of what you say as you speak. Everything runs on the Mac, using only Apple's own frameworks.
 
-The episode also includes a video of how the app was built: **[watch the video](https://semantic-works.com/public/headcam-studio/episode-1/video/)**, or [watch it on YouTube](https://youtu.be/ER1GQ6WiXwA).
+* **[Episode 2 (Dictate and Voice)](./headcam-studio/episode-2/)** — Two ways to talk to an AI, and when to use each. Pasha asks ChatGPT the same question twice, once by dictation and once in a spoken conversation, and shows how he combines the two to get his work done without typing.
+
+Both episodes are videos. Episode 1: **[watch the video](https://semantic-works.com/public/headcam-studio/episode-1/video/)**, or [watch it on YouTube](https://youtu.be/ER1GQ6WiXwA). Episode 2: **[watch it on YouTube](https://youtu.be/f1RkOoOMNjc)**, or [follow the journey](https://semantic-works.com/public/headcam-studio/episode-2/journey/).
 
 <a href="./headcam-studio/episode-1/"><img src="./headcam-studio/episode-1/screenshot.jpg" alt="The bubble floating over a Claude window, with the room behind the presenter blurred" width="50%"></a>
 
@@ -29,6 +31,8 @@ A series exploring visual modeling, workflow graphs, and discrete-event simulati
 * **[Episode X (500 Million Tokens to Cook One Process Map)](./cyber-kitchen/episode-x/)** — The restaurant rebuilt on discrete-event simulation: one engine, three views (Floor Plan, Process Map, Scorecard), an objective and metrics for every object, actions such as calling a cook in sick, and a full test suite.
 
 Each episode also includes a slide-by-slide presentation of how it was built, with the finished simulator running live on its third slide: follow the journey for **[Episode 1](https://semantic-works.com/public/cyber-kitchen/episode-1/journey/)**, **[Episode 2](https://semantic-works.com/public/cyber-kitchen/episode-2/journey/)** and **[Episode X](https://semantic-works.com/public/cyber-kitchen/episode-x/journey/)**.
+
+Episode 1 is also a video: **[watch it on YouTube](https://youtu.be/BYiXYf1y-2I)**.
 
 | The restaurant floor | The service view | The Process Map |
 |---|---|---|

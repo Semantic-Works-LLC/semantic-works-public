@@ -2,7 +2,7 @@
 
 An animated, clickable floor plan of a restaurant, built in one conversation between Pavel and Claude on 11 October 2026. Pavel had been invited to advise a restaurant owner on how the restaurant operates; this page is a first model of what he saw there.
 
-The full conversation, with Pavel's requests as understood, is in [TRANSCRIPT.md](TRANSCRIPT.md). A slide-by-slide account of the journey, with the finished page running live on its second slide, can be [followed online](https://semantic-works.com/public/cyber-kitchen/episode-1/journey/); the file itself is [journey/index.html](journey/index.html).
+The full conversation, with Pavel's requests as understood, is in [TRANSCRIPT.md](TRANSCRIPT.md). A slide-by-slide account of the journey, with the finished page running live on its second slide, can be [followed online](https://semantic-works.com/public/cyber-kitchen/episode-1/journey/); the file itself is [journey/index.html](journey/index.html). A video of the episode can be [watched on YouTube](https://youtu.be/BYiXYf1y-2I).
 
 ## How we started
 
