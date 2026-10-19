@@ -1,13 +1,37 @@
 ---
 name: episode
-description: Prepare and check one Semantic Works episode (Cyber Kitchen, NYC Subway Live, HeadCam Studio, …) for release to GitHub in `Semantic-Works-LLC/semantic-works-public`: its folder, README, TRANSCRIPT.md, the main README entry, the journey or video link, the token and cost count, and the checks before release. Use when asked to add, release, check or publish an episode, with or without a journey.
+description: Plan, prepare and check one Semantic Works episode (Cyber Kitchen, NYC Subway Live, HeadCam Studio, Tea Time Planner, …): first the planning conversation before anything is recorded (who it is for, the everyday example, the principle underneath), then its release to GitHub in `Semantic-Works-LLC/semantic-works-public`: its folder, README, TRANSCRIPT.md, the main README entry, the journey or video link, the token and cost count, and the checks before release. Use when Pasha wants to make, record, add, release, check or publish an episode or video, with or without a journey.
 ---
 
-# Releasing an episode
+# Making and releasing an episode
 
 An episode is one product built in one recorded conversation between Pasha and Claude. It is released to GitHub, in the `semantic-works-public` repository, as a folder holding its source, its README and its `TRANSCRIPT.md`. An episode comes with either a **journey** (a slide deck; see the `journey` skill for how to write one) or a **video**.
 
 This skill covers only what goes into the repository. The website is covered elsewhere. Nothing is committed, pushed or published without Pasha's go-ahead: prepare, check, report what was found, and wait.
+
+## Before recording: plan the episode with Pasha
+
+This comes first, before anything is recorded or built. When Pasha says he wants to make a new episode or video, start with a short planning conversation, and agree on the answers below before he presses record. Nothing else in this skill starts until this is done.
+
+**Who it is for.** Two layers, every time:
+
+- **The surface is for smart non-engineers:** college graduates, business majors, anyone using AI tools. They must be able to follow it without any programming.
+- **The core is for professional engineers:** the reasoning underneath must be sound enough that a senior software engineer agrees with the method.
+
+**Settle these, in this order:**
+
+1. **The lesson:** the one thing a viewer should be able to do afterwards, in a sentence. For example, "Explore by voice, then specify by dictate".
+2. **The everyday example** that carries the lesson: a problem a business major has had themselves, ideally with a business flavour. For example: planning a trip or a party, choosing between two vendors or job offers, a renovation, a training plan, a product launch, a busy-season staffing plan, reviewing a contract. Not a programming choice: an example like "SVG versus WebGL versus Swift" loses everyone who is not a developer in the first minute, even when the lesson is broad.
+3. **The principle underneath:** one real idea an engineer recognises, such as exploring options before committing, requirements before design, constraints and dependencies, or checking the result. Pasha names it once, in plain words, during the episode.
+4. **The check:** one moment where the AI's work is verified, not just accepted, for example a plan checked against a budget, or a result compared with a source. This is what separates rigour from hype.
+5. **Where the depth goes:** the technical detail belongs in the README, the transcript and one "Under the hood" slide in the journey, not in the main story.
+
+**Two tests before recording:**
+
+- **The surface test:** could a business major explain the example back after the first 30 seconds?
+- **The core test:** would a senior engineer agree with the method?
+
+If either answer is no, change the example or the method before recording, not after. The series and episode name, and whether it will have a journey or a video, are agreed in the same conversation.
 
 ## The folder
 
